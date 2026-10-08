@@ -61,8 +61,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED on)
 # set(cxx_warnings "${cxx_warnings} -Wstrict-overflow")
 # set(cxx_warnings "${cxx_warnings} -fno-strict-aliasing")
 
-set(cxx_warnings "${cxx_warnings} -Wno-format-overflow")
-set(cxx_warnings "${cxx_warnings} -Wno-format-truncation")
+if (NOT MSVC)
+    # GCC/Clang-only flags -- cl.exe parses leading "-W" as its own /W<n>
+    # warning-level switch and hard-errors (D8021) on the non-numeric rest.
+    set(cxx_warnings "${cxx_warnings} -Wno-format-overflow")
+    set(cxx_warnings "${cxx_warnings} -Wno-format-truncation")
+endif ()
 
 #
 # Set the flags and warnings for the debug/release builds
@@ -260,6 +264,14 @@ elseif ((MSYS OR MINGW) AND NOT "$ENV{MINGW}" STREQUAL "")
 
     set(CURSES_INCLUDE_DIR "/$ENV{MINGW}/include/")
     set(CURSES_LIBRARIES "/$ENV{MINGW}/lib/libncurses.a")
+elseif (MSVC)
+    # Plain MSVC (no MSYS/MinGW): use PDCurses via vcpkg. vcpkg's pdcurses
+    # port only ships a CMake config package (no ncurses-named lib for
+    # stock FindCurses.cmake to discover), so link its imported target
+    # directly instead of going through find_package(Curses).
+    message(STATUS "NOTE: Configuring build for Windows (MSVC) using vcpkg pdcurses...")
+    find_package(unofficial-pdcurses CONFIG REQUIRED)
+    set(CURSES_LIBRARIES unofficial::pdcurses::pdcurses)
 else ()
     message(STATUS "NOTE: Configuring build for macOS/Linux release...")
     set(CURSES_NEED_NCURSES TRUE)
@@ -268,3 +280,21 @@ endif ()
 
 include_directories(${CURSES_INCLUDE_DIR})
 target_link_libraries(umoria ${CURSES_LIBRARIES})
+
+
+#
+# Golden-trace harness: a headless CLI for the .NET migration POC
+# (dotnet/) to verify ported game logic against the real C++ output.
+# See tools/golden_trace/golden_trace_harness.cpp for details. Reuses the
+# game's own source files (minus main.cpp, replaced by the harness's own)
+# so it stays in sync with the real game logic automatically; still links
+# curses since several of those files reference it, even though this
+# harness's own code path never calls initscr().
+#
+set(golden_trace_source_files ${source_files})
+list(REMOVE_ITEM golden_trace_source_files ${source_dir}/main.cpp)
+list(APPEND golden_trace_source_files tools/golden_trace/golden_trace_harness.cpp)
+
+add_executable(golden_trace_harness ${golden_trace_source_files})
+target_link_libraries(golden_trace_harness ${CURSES_LIBRARIES})
+set_target_properties(golden_trace_harness PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

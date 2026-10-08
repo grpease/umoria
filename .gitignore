@@ -85,3 +85,6 @@ dotnet/**/obj/
 dotnet/*.user
 .vs/
 
+# local out-of-source MSVC+vcpkg build (see dotnet/ migration POC toolchain notes)
+/build-msvc/
+
