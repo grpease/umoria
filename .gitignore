@@ -78,3 +78,10 @@ compile_commands.json
 *.zip
 
 .DS_Store
+
+# .NET (dotnet/)
+dotnet/**/bin/
+dotnet/**/obj/
+dotnet/*.user
+.vs/
+

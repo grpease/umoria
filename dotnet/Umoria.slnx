@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Umoria.Console/Umoria.Console.csproj" />
+    <Project Path="src/Umoria.Core/Umoria.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Umoria.Core.Tests/Umoria.Core.Tests.csproj" />
+  </Folder>
+</Solution>

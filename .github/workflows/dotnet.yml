@@ -1,0 +1,64 @@
+name: .NET port (proof-of-concept)
+
+on:
+  push:
+    paths:
+      - "dotnet/**"
+      - ".github/workflows/dotnet.yml"
+  pull_request:
+    paths:
+      - "dotnet/**"
+      - ".github/workflows/dotnet.yml"
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: dotnet
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+  publish-smoke-test:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: dotnet
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # Proves the self-contained publish succeeds on every target platform.
+      # It cannot exercise the interactive Terminal.Gui loop -- that needs a
+      # real TTY and is a manual smoke-test step (see the migration plan).
+      - name: Publish self-contained
+        run: >
+          dotnet publish src/Umoria.Console
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -c Release
