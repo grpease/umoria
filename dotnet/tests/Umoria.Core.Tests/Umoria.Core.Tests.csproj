@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <None Include="..\GoldenTraces\**" LinkBase="GoldenTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\DataTableTraces\**" LinkBase="DataTableTraces" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

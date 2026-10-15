@@ -298,3 +298,18 @@ list(APPEND golden_trace_source_files tools/golden_trace/golden_trace_harness.cp
 add_executable(golden_trace_harness ${golden_trace_source_files})
 target_link_libraries(golden_trace_harness ${CURSES_LIBRARIES})
 set_target_properties(golden_trace_harness PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
+# Data-table dump harness: verifies the .NET migration's mechanically
+# extracted data tables (dotnet/tools/CppModelExtractor/extract_data_tables.py)
+# against the real compiled C++ game data. See
+# tools/data_table_dump/data_table_dump.cpp for details.
+#
+set(data_table_dump_source_files ${source_files})
+list(REMOVE_ITEM data_table_dump_source_files ${source_dir}/main.cpp)
+list(APPEND data_table_dump_source_files tools/data_table_dump/data_table_dump.cpp)
+
+add_executable(data_table_dump ${data_table_dump_source_files})
+target_link_libraries(data_table_dump ${CURSES_LIBRARIES})
+set_target_properties(data_table_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

@@ -1,6 +1,5 @@
 # Dragon Information
 
-
 Every breath weapon does 1/3 of the monster's current hit points,
 except lightning, which does 1/4.
 
@@ -115,4 +114,3 @@ jelly trick.
     acid:       107/53/27
     fire/cold:  107/36/12
     gas:        107
-

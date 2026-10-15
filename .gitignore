@@ -88,3 +88,7 @@ dotnet/*.user
 # local out-of-source MSVC+vcpkg build (see dotnet/ migration POC toolchain notes)
 /build-msvc/
 
+# Python (dotnet/tools/CppModelExtractor/)
+__pycache__/
+*.pyc
+
