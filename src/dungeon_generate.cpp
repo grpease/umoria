@@ -1111,14 +1111,20 @@ static void monsterLinker();
 
 // Test-only entry point for the golden-trace harness (tools/golden_trace).
 // Mirrors generateCave()'s dungeon-level path (not town) and dungeonGenerate()
-// up through picking the player's starting spot, but stops before monster
-// placement (monsterPlaceNewWithinDistance), object allocation
-// (dungeonAllocateAndPlaceObject), and monsterPlaceWinning -- none of which
-// are implemented yet on the .NET port side, so including them here would
-// make any golden-trace comparison diverge regardless of whether the ported
-// room/tunnel/wall/stair logic itself is correct. Not part of the normal
-// game; never called from generateCave() or anywhere else in the game.
+// up through picking the player's starting spot and placing the level's
+// random monsters (monsterPlaceNewWithinDistance), but stops before object
+// allocation (dungeonAllocateAndPlaceObject) and monsterPlaceWinning --
+// neither of which are implemented yet on the .NET port side, so including
+// them here would make any golden-trace comparison diverge regardless of
+// whether the ported logic itself is correct. Not part of the normal game;
+// never called from generateCave() or anywhere else in the game.
 Coord_t generateCaveLayoutOnlyForTesting(int level, uint32_t seed) {
+    // Normally only called once from startMoria(); this test entry point
+    // bypasses that, so call it here instead. Deterministic (built from the
+    // static creatures_list[] table, no RNG draws), so calling it on every
+    // invocation doesn't affect golden-trace reproducibility.
+    initializeMonsterLevels();
+
     setRandomSeed(seed);
 
     dg.panel.top = 0;
@@ -1231,6 +1237,15 @@ Coord_t generateCaveLayoutOnlyForTesting(int level, uint32_t seed) {
     dungeonNewSpot(coord);
     py.pos.y = coord.y;
     py.pos.x = coord.x;
+
+    int alloc_level = (dg.current_level / 3);
+    if (alloc_level < 2) {
+        alloc_level = 2;
+    } else if (alloc_level > 10) {
+        alloc_level = 10;
+    }
+
+    monsterPlaceNewWithinDistance((randomNumber(8) + config::monsters::MON_MIN_PER_LEVEL + alloc_level), 0, true);
 
     return coord;
 }

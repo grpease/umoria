@@ -23,7 +23,7 @@ generation (initially feared otherwise).
 - [x] POC prerequisites — RNG/dice, data-table extraction pipeline (regex-based), core dungeon structs, dungeon_generate.cpp room/tunnel/door/stair/streamer logic (golden-trace verified, see Context)
 - [x] M0 — Real data-table extractor (libclang-based)
 - [x] M1 — Core structs: Creature_t, Monster_t, Inventory_t, Player_t
-- [ ] M2 — Monster placement
+- [x] M2 — Monster placement
 - [ ] M3 — Item magic/enchantment engine
 - [ ] M4 — Object/treasure placement *(partial: TreasureStub.cs exists only as a minimal door/stair/gold-slot placeholder, not real object/treasure placement)*
 - [ ] M5 — Dungeon lighting & line-of-sight

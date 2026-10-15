@@ -63,6 +63,12 @@ extern Creature_t creatures_list[MON_MAX_CREATURES];
 extern Monster_t monsters[MON_TOTAL_ALLOCATIONS];
 extern int16_t monster_levels[MON_MAX_LEVELS + 1];
 extern MonsterAttack_t monster_attacks[MON_ATTACK_TYPES];
+
+// src/game_run.cpp -- populates monster_levels[] from creatures_list[].
+// Normally called once from startMoria(); not static so the .NET migration's
+// generateCaveLayoutOnlyForTesting() test entry point (src/dungeon_generate.cpp)
+// can call it too, since that entry point bypasses startMoria() entirely.
+void initializeMonsterLevels();
 extern Monster_t blank_monster;
 extern int16_t next_free_monster_id;
 extern int16_t monster_multiply_total;

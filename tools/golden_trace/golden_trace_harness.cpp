@@ -52,6 +52,18 @@ int main(int argc, char *argv[]) {
         std::fprintf(out, "\n");
     }
 
+    // Monster list placed by monsterPlaceNewWithinDistance() (see
+    // src/monster_manager.cpp, ported in Umoria.Core.Dungeon.MonsterManager).
+    // Monster slots run from MON_MIN_INDEX_ID (index 0 = no monster, 1 =
+    // reserved for the player) up to (not including) next_free_monster_id.
+    std::fprintf(out, "monsters %d\n", next_free_monster_id - config::monsters::MON_MIN_INDEX_ID);
+    for (int i = config::monsters::MON_MIN_INDEX_ID; i < next_free_monster_id; i++) {
+        Monster_t const &m = monsters[i];
+        std::fprintf(
+            out, "monster %d %u %d %d %d %d %d %u %u %u %d\n", i, m.creature_id, m.hp, m.sleep_count, m.pos.y,
+            m.pos.x, m.speed, m.distance_from_player, (unsigned) m.lit, m.stunned_amount, m.confused_amount);
+    }
+
     if (out != stdout) {
         std::fclose(out);
     }

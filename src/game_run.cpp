@@ -10,7 +10,6 @@
 static void playDungeon();
 
 static void initializeCharacterInventory();
-static void initializeMonsterLevels();
 static void initializeTreasureLevels();
 static void priceAdjust();
 static char originalCommands(char command);
@@ -186,7 +185,10 @@ static void initializeCharacterInventory() {
 }
 
 // Initializes M_LEVEL array for use with PLACE_MONSTER -RAK-
-static void initializeMonsterLevels() {
+// Not static: also called from generateCaveLayoutOnlyForTesting() (see
+// src/dungeon_generate.cpp), the .NET migration's golden-trace test entry
+// point, which bypasses startMoria() entirely.
+void initializeMonsterLevels() {
     for (auto &level : monster_levels) {
         level = 0;
     }

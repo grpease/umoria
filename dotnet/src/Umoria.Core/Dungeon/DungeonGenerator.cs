@@ -26,7 +26,9 @@ namespace Umoria.Core.Dungeon;
 //       builder instead, so the level stays fully connected and walkable,
 //       but output will NOT match the original byte-for-byte for seeds
 //       that hit this case.
-//     - monster placement (monsterPlaceNewWithinDistance/monsterPlaceWinning)
+//     - monsterPlaceWinning() (only reachable past the still-excluded vault
+//       branch's level range; see MonsterManager for the rest of monster
+//       placement, which IS ported)
 //     - general object/treasure allocation (dungeonAllocateAndPlaceObject)
 //     - rubble and traps (no vaults => dungeonPlaceVaultTrap is unreachable)
 //
@@ -39,15 +41,17 @@ public sealed class DungeonGenerator
 {
     private readonly Model.Generated.Dungeon _dg;
     private readonly TreasureList _treasure;
+    private readonly MonsterManager _monsters;
 
     // src/dungeon_generate.cpp: static Coord_t doors_tk[100]; static int door_index;
     private readonly Coord[] _doorsFound = new Coord[100];
     private int _doorIndex;
 
-    public DungeonGenerator(Model.Generated.Dungeon dg, TreasureList treasure)
+    public DungeonGenerator(Model.Generated.Dungeon dg, TreasureList treasure, MonsterManager monsters)
     {
         _dg = dg;
         _treasure = treasure;
+        _monsters = monsters;
     }
 
     // Port of generateCave()'s dungeon-level branch (current_level >= 1).
@@ -172,10 +176,28 @@ public sealed class DungeonGenerator
         PlaceStairs(1, RandomNumber.Next(2), 3);
 
         // Set up the character's starting coords (dungeonNewSpot).
-        // The original also seeds monsterPlaceNewWithinDistance/
-        // monsterPlaceWinning/dungeonAllocateAndPlaceObject from here;
-        // those are deferred (see class comment).
-        return NewSpot();
+        var playerStart = NewSpot();
+
+        var allocLevel = _dg.CurrentLevel / 3;
+        if (allocLevel < 2)
+        {
+            allocLevel = 2;
+        }
+        else if (allocLevel > 10)
+        {
+            allocLevel = 10;
+        }
+
+        // playerSpeedFlag: 0, matching py.flags.speed's zero-initialized
+        // value -- no Player singleton exists yet (M1 only modeled the
+        // shape; see MonsterManager's class comment) and nothing in this
+        // scoped generator can have changed it from its startup default.
+        _monsters.PlaceNewWithinDistance(RandomNumber.Next(8) + MonsterConfig.MonMinPerLevel + allocLevel, 0, true, playerStart, 0);
+
+        // The original also seeds dungeonAllocateAndPlaceObject/
+        // monsterPlaceWinning from here; those are deferred (see class
+        // comment).
+        return playerStart;
     }
 
     // src/dungeon_generate.cpp:331 dungeonBuildRoom()

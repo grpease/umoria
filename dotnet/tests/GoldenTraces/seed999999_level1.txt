@@ -1,6 +1,6 @@
 seed 999999
 level 1
-rnd_seed 1147914121
+rnd_seed 1644914118
 player_start 4 138
 height 66
 width 198
@@ -71,3 +71,27 @@ fcccccc22222222222222ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 fcccccc22222222222222ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccceeeecccccccccccccccccccccccccccccccccccccccf
 fcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccceceeccecccccccccccccccccccccccccccccccccccccccf
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+monsters 23
+monster 2 9 9 328 27 79 1 70 0 0 0
+monster 3 11 13 109 57 73 1 91 0 0 0
+monster 4 18 13 56 26 108 1 41 0 0 0
+monster 5 16 8 33 29 179 1 53 0 0 0
+monster 6 8 1 0 21 71 1 75 0 0 0
+monster 7 57 22 481 60 74 0 92 0 0 0
+monster 8 8 1 0 48 15 1 145 0 0 0
+monster 9 9 6 239 29 172 1 46 0 0 0
+monster 10 14 9 261 26 153 0 29 0 0 0
+monster 11 15 15 704 3 125 1 13 0 0 0
+monster 12 14 12 355 38 141 0 35 0 0 0
+monster 13 12 4 53 39 120 1 44 0 0 0
+monster 14 8 1 0 28 133 1 26 0 0 0
+monster 15 10 8 123 49 44 1 116 0 0 0
+monster 16 14 14 339 16 150 0 18 0 0 0
+monster 17 17 12 116 20 17 0 129 0 0 0
+monster 18 11 12 24 60 45 1 121 0 0 0
+monster 19 8 1 0 59 17 1 148 0 0 0
+monster 20 17 12 36 39 80 0 75 0 0 0
+monster 21 9 8 188 28 120 1 33 0 0 0
+monster 22 16 10 52 5 55 1 83 0 0 0
+monster 23 8 1 0 52 149 1 53 0 0 0
+monster 24 13 2 159 28 72 1 78 0 0 0

@@ -17,7 +17,7 @@ public class DungeonGeneratorTests
     {
         MoriaRng.SetRandomSeed(seed);
         var dg = new Model.Generated.Dungeon();
-        var generator = new DungeonGenerator(dg, new TreasureList());
+        var generator = new DungeonGenerator(dg, new TreasureList(), new MonsterManager(dg));
         var start = generator.Generate(level);
         return (dg, start);
     }

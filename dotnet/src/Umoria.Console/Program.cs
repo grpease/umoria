@@ -29,7 +29,7 @@ for (var i = 0; i < args.Length; i++)
 MoriaRng.SetRandomSeed(seed);
 
 var dungeon = new Umoria.Core.Model.Generated.Dungeon();
-var generator = new DungeonGenerator(dungeon, new TreasureList());
+var generator = new DungeonGenerator(dungeon, new TreasureList(), new MonsterManager(dungeon));
 var playerStart = generator.Generate(level: 1);
 
 Application.Init();

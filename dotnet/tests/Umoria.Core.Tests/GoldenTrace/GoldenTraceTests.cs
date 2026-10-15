@@ -13,12 +13,13 @@ namespace Umoria.Core.Tests.GoldenTrace;
 // The C++ harness calls generateCaveLayoutOnlyForTesting(), a test-only
 // function added to src/dungeon_generate.cpp that mirrors generateCave()'s
 // dungeon-level path and dungeonGenerate() up through picking the player's
-// start spot, stopping before monster/object placement -- exactly the
-// subset DungeonGenerator implements. Level 1 specifically is used because
-// the "unusual room" (vault) selection can never trigger there
-// (current_level > randomNumber(DUN_UNUSUAL_ROOMS=300) is never true at
-// level 1), so this is a genuine apples-to-apples comparison, not just a
-// coincidental partial match.
+// start spot and placing the level's random monsters, stopping before
+// object placement -- exactly the subset DungeonGenerator/MonsterManager
+// implement. Level 1 specifically is used because the "unusual room"
+// (vault) selection can never trigger there (current_level >
+// randomNumber(DUN_UNUSUAL_ROOMS=300) is never true at level 1), so this is
+// a genuine apples-to-apples comparison, not just a coincidental partial
+// match.
 public class GoldenTraceTests
 {
     [Theory]
@@ -32,7 +33,8 @@ public class GoldenTraceTests
 
         MoriaRng.SetRandomSeed(expected.Seed);
         var dg = new Model.Generated.Dungeon();
-        var generator = new DungeonGenerator(dg, new TreasureList());
+        var monsters = new MonsterManager(dg);
+        var generator = new DungeonGenerator(dg, new TreasureList(), monsters);
         var playerStart = generator.Generate(expected.Level);
 
         Assert.Equal(expected.Height, dg.Height);
@@ -62,5 +64,29 @@ public class GoldenTraceTests
         }
 
         Assert.True(mismatches.Count == 0, $"floor mismatches (first {mismatches.Count}):\n" + string.Join("\n", mismatches));
+
+        Assert.Equal(expected.Monsters.Length, monsters.NextFreeMonsterId - Config.MonsterConfig.MonMinIndexId);
+
+        var monsterMismatches = new List<string>();
+        foreach (var expectedMonster in expected.Monsters)
+        {
+            var actual = monsters.Monsters[expectedMonster.Id];
+            var actualFields = (
+                CreatureId: (int)actual.CreatureId, Hp: (int)actual.Hp, SleepCount: (int)actual.SleepCount,
+                Y: actual.Pos.Y, X: actual.Pos.X, Speed: (int)actual.Speed,
+                DistanceFromPlayer: (int)actual.DistanceFromPlayer, Lit: actual.Lit,
+                StunnedAmount: (int)actual.StunnedAmount, ConfusedAmount: (int)actual.ConfusedAmount);
+            var expectedFields = (
+                expectedMonster.CreatureId, expectedMonster.Hp, expectedMonster.SleepCount, expectedMonster.Y,
+                expectedMonster.X, expectedMonster.Speed, expectedMonster.DistanceFromPlayer, expectedMonster.Lit,
+                expectedMonster.StunnedAmount, expectedMonster.ConfusedAmount);
+
+            if (!actualFields.Equals(expectedFields))
+            {
+                monsterMismatches.Add($"monster {expectedMonster.Id}: expected {expectedFields}, got {actualFields}");
+            }
+        }
+
+        Assert.True(monsterMismatches.Count == 0, $"monster mismatches:\n" + string.Join("\n", monsterMismatches));
     }
 }
