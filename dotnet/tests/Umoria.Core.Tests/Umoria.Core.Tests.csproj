@@ -26,6 +26,7 @@
     <None Include="..\GoldenTraces\**" LinkBase="GoldenTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\DataTableTraces\**" LinkBase="DataTableTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\ItemMagicTraces\**" LinkBase="ItemMagicTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\LosTraces\**" LinkBase="LosTraces" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

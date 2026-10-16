@@ -66,18 +66,17 @@ public static class TreasureCategory
     public const byte TvMaxVisible = 110;
 }
 
-// Port of game.treasure (src/game.h) and popt() (src/game_objects.cpp:70) --
-// the real item-instance list, replacing the bump-allocator TreasureStub
-// that stood in for it through M2/M3.
+// Port of game.treasure (src/game.h), popt() (src/game_objects.cpp:70), and
+// pusht() (src/game_objects.cpp:81) -- the real item-instance list,
+// replacing the bump-allocator TreasureStub that stood in for it through
+// M2/M3. pusht() became portable with M5's dungeonLiteSpot()/
+// dungeonDeleteObject() (see ObjectPlacement.DeleteObject).
 //
-// pusht()/compactObjects() are NOT ported: both are confirmed unreachable
-// for anything through M4. compactObjects() needs Player.Pos (M6, no
-// Player singleton exists yet) and dungeonDeleteObject()/dungeonLiteSpot()
-// (M5, pure rendering); its only caller is popt() when the list is full,
-// which is also the original's own "extremely rare" path (see
-// LevelMaxObjects' comment). pusht()'s only other callers are
-// dungeonDeleteObject() itself, save/load (M12), and store restocking
-// (M13) -- none in scope yet.
+// compactObjects() is still NOT ported: it needs Player.Pos (M6, no Player
+// singleton exists yet) to measure distance from the player. Its only
+// caller is Popt() when the list is already full, which the original calls
+// "extremely rare" (see LevelMaxObjects' comment) -- confirmed never
+// triggered across the golden-trace seeds (busiest was 80 of 175 slots).
 public sealed class TreasureList
 {
     public const int LevelMaxObjects = GameConstants.LevelMaxObjects;
@@ -95,11 +94,41 @@ public sealed class TreasureList
             // See the class comment above for why compactObjects() isn't
             // ported yet. Throwing (rather than silently wrapping or
             // overwriting) makes it loud if a future milestone's object
-            // count ever gets this high before M5/M6 land.
+            // count ever gets this high before M6 lands.
             throw new NotImplementedException(
-                "compactObjects() is not ported yet (deferred to M5/M6); treasure allocation should never reach capacity before then.");
+                "compactObjects() is not ported yet (deferred to M6); treasure allocation should never reach capacity before then.");
         }
 
         return CurrentId++;
+    }
+
+    // src/game_objects.cpp:81 pusht() -- pushes a freed slot back onto the
+    // free-list by swapping it with the current top-of-stack entry, then
+    // retargeting whatever cell on the floor pointed at that top entry (if
+    // any) to its new slot. dg is passed explicitly rather than stored,
+    // same as elsewhere in this port (e.g. ObjectPlacement.AllocateAndPlaceObject's
+    // playerPos parameter) since no owning Dungeon reference is kept here.
+    public void Pusht(Model.Generated.Dungeon dg, byte treasureId)
+    {
+        if (treasureId != CurrentId - 1)
+        {
+            List[treasureId] = List[CurrentId - 1];
+
+            // must change the treasure_id in the cave of the object just moved
+            for (var y = 0; y < dg.Height; y++)
+            {
+                for (var x = 0; x < dg.Width; x++)
+                {
+                    if (dg.Floor[y, x].TreasureId == CurrentId - 1)
+                    {
+                        dg.Floor[y, x].TreasureId = treasureId;
+                    }
+                }
+            }
+        }
+
+        CurrentId--;
+
+        List[CurrentId] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjNothing);
     }
 }

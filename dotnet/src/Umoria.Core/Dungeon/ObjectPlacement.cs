@@ -9,7 +9,9 @@ namespace Umoria.Core.Dungeon;
 // (itemGetRandomObjectId, itemBiggerThanChest) and src/dungeon.cpp
 // (dungeonSetTrap, dungeonPlaceRubble, dungeonPlaceGold,
 // dungeonPlaceRandomObjectAt, dungeonAllocateAndPlaceObject,
-// dungeonPlaceRandomObjectNear) -- M4 per migration-plan.md.
+// dungeonPlaceRandomObjectNear) -- M4 per migration-plan.md -- plus
+// dungeonDeleteObject() and dungeonSummonObject(), added in M5 once
+// Los.Check()/ScreenRendering.LiteSpot() made them reachable.
 // popt()/pusht()/compactObjects() live on TreasureList itself.
 //
 // Confirmed NOT ported here:
@@ -276,5 +278,83 @@ public sealed class ObjectPlacement
             default:
                 return false;
         }
+    }
+
+    // src/dungeon.cpp:601 dungeonDeleteObject() -- became portable once M5
+    // added Pusht()/LiteSpot(); the "something roll beneath your feet"
+    // message is UI output only and has no RNG/state effect, so (as
+    // elsewhere in this port) it's omitted.
+    public bool DeleteObject(Coord coord)
+    {
+        var tile = _dg.Floor[coord.Y, coord.X];
+
+        if (tile.FeatureId == TileConstants.TileBlockedFloor)
+        {
+            tile.FeatureId = TileConstants.TileCorrFloor;
+        }
+
+        _treasure.Pusht(_dg, tile.TreasureId);
+
+        tile.TreasureId = 0;
+        tile.FieldMark = false;
+
+        _dg.Floor[coord.Y, coord.X] = tile;
+
+        ScreenRendering.LiteSpot(_dg, coord);
+
+        return DungeonLighting.CaveTileVisible(_dg, coord);
+    }
+
+    // src/dungeon.cpp:548 dungeonSummonObject() -- creates objects near the
+    // given coordinate. object_type meanings: 1/5 = objects, anything else
+    // = gold, 3/7 = 50/50 objects-or-gold; object_type >= 4 also means
+    // must_be_small when placing an object (matches the original's inline
+    // `object_type >= 4` argument).
+    public int SummonObject(Coord coord, int amount, int objectType)
+    {
+        var realType = (objectType == 1 || objectType == 5) ? 1 : 256;
+
+        var result = 0;
+
+        do
+        {
+            for (var tries = 0; tries <= 20; tries++)
+            {
+                var at = new Coord(coord.Y - 3 + RandomNumber.Next(5), coord.X - 3 + RandomNumber.Next(5));
+
+                if (CoordHelpers.InBounds(_dg, at) && Los.Check(_dg, coord, at))
+                {
+                    if (_dg.Floor[at.Y, at.X].FeatureId <= TileConstants.MaxOpenSpace && _dg.Floor[at.Y, at.X].TreasureId == 0)
+                    {
+                        if (objectType == 3 || objectType == 7)
+                        {
+                            realType = RandomNumber.Next(100) < 50 ? 1 : 256;
+                        }
+
+                        if (realType == 1)
+                        {
+                            PlaceRandomObjectAt(at, objectType >= 4);
+                        }
+                        else
+                        {
+                            PlaceGold(at);
+                        }
+
+                        ScreenRendering.LiteSpot(_dg, at);
+
+                        if (DungeonLighting.CaveTileVisible(_dg, at))
+                        {
+                            result += realType;
+                        }
+
+                        tries = 20;
+                    }
+                }
+            }
+
+            amount--;
+        } while (amount != 0);
+
+        return result;
     }
 }

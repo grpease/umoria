@@ -26,7 +26,7 @@ generation (initially feared otherwise).
 - [x] M2 — Monster placement
 - [x] M3 — Item magic/enchantment engine
 - [x] M4 — Object/treasure placement
-- [ ] M5 — Dungeon lighting & line-of-sight
+- [x] M5 — Dungeon lighting & line-of-sight
 - [ ] M6 — Character creation
 - [ ] M7 — Player status-effects subsystem
 - [ ] M8 — Player movement/action subsystem
@@ -118,14 +118,37 @@ confirmed unreachable through M4 (compactObjects() needs Player.Pos (M6) and dun
 dungeonDeleteObject() (M5, pure rendering); its only caller, popt(), is also the original's own "extremely     
 rare" path at LEVEL_MAX_OBJECTS=175). Revisit once M5/M6 land.  
 																											  
-### M5 — Dungeon lighting & line-of-sight                                                                           
-																											  
-- Scope: dungeon_los.cpp (los(), look()), plus dungeonLightRoom, dungeonLiteSpot, dungeonMoveCharacterLight,    
-dungeonMoveCreatureRecord, dungeonDeleteMonster*, dungeonSummonObject, dungeonDeleteObject from dungeon.cpp.  
-- Size: M. Depends on: M1 only (geometry, not RNG — independent of M2-M4).                                      
-- Verify: los()/look() are pure deterministic functions of grid state — direct unit tests comparing C++ vs C#   
-output across a battery of hand-built grids, no seed/RNG harness needed.                                      
-- Defer: none — foundational for both monster AI (sight) and player exploration UI.                             
+### M5 — Dungeon lighting & line-of-sight
+
+- Scope: los() (dungeon_los.cpp), dungeonLightRoom/dungeonLiteSpot/dungeonMoveCreatureRecord/
+dungeonDeleteMonster*/dungeonSummonObject/dungeonDeleteObject (dungeon.cpp), plus pusht() (game_objects.cpp),
+which became portable now that dungeonLiteSpot/dungeonDeleteObject exist. Done.
+- Size: M. Depends on: M1 only (geometry, not RNG — independent of M2-M4).
+- Verify: los() is a pure deterministic function of grid state as assumed — cross-checked against the real
+compiled C++ game via a new tools/los_dump harness (6 hand-built grids x 10x10 all-pairs = 60,000 cases, no
+seed/RNG needed). The rest (dungeonDeleteObject, dungeonSummonObject, the monster-removal primitives,
+dungeonLightRoom's state mutation) are direct unit tests, not golden-traced: confirmed via grep that none of
+them are reachable from dungeonGenerate() itself (they're called from player actions/spells/monster AI, all
+later milestones), so there's no existing harness call site to extend yet.
+- Defer, with real coupling found (not assumed -- same discipline as the Context section's three couplings):
+  - look()/lookRay()/lookSee() (dungeon_los.cpp) was listed alongside los() on the assumption both were "pure
+    deterministic functions of grid state." That held for los() but not look(): lookSee() prompts for
+    keypresses, prints messages, and reads Player.pos/flags.blind/flags.image (M6), monster.lit + creature
+    sprites (display), and the treasure list's item descriptions. It's an interactive player command, not
+    geometry. Deferred to whichever milestone builds player commands/the terminal UI.
+  - dungeonMoveCharacterLight (+ sub1MoveLight/sub3MoveLight) reads Player.flags.blind/carrying_light/
+    running_tracker/temporary_light_only (M6) and config::options::run_print_self (UI) -- a real M6/M8
+    dependency. Naturally belongs with M8's player-movement port, which already lists M5 as a prerequisite.
+  - compactObjects() (popt()'s only caller at capacity) still needs Player.Pos (M6) to measure distance from
+    the player -- unchanged from M4's finding, just reconfirmed now that its other blocker (dungeonLiteSpot/
+    dungeonDeleteObject) is resolved.
+  - compactMonsters() turned out NOT to need Player.Pos (that was M4/M2's assumption, carried over from
+    popm()'s comment) -- it needs hack_monptr (monster.h), a global tied to monster.cpp's updateMonsters() AI
+    loop. Deferred to M9, not M5/M6; corrected in MonsterManager.Popm()'s comment.
+  - caveGetTileSymbol/panelPutTile/coordInsidePanel (terminal rendering) have no .NET equivalent yet -- no UI
+    milestone is scheduled. dungeonLiteSpot is ported as a documented no-op (ScreenRendering.LiteSpot) at
+    each real call site, so wiring up a real renderer later is a one-line change per caller.
+
 																											  
 ### M6 — Character creation                                                                                         
 																											  

@@ -14,6 +14,13 @@ namespace Umoria.Core.Dungeon;
 // reachable via the still-excluded vault/unusual-room branch, so they're
 // deferred along with it.
 //
+// M5 added the monster-removal primitives from src/dungeon.cpp:
+// dungeonMoveCreatureRecord(), dungeonDeleteMonster(),
+// dungeonRemoveMonsterFromLevel(), and dungeonDeleteMonsterRecord() -- the
+// same migration-plan.md milestone that also unblocked
+// ObjectPlacement.DeleteObject(). compactMonsters() is still deferred (see
+// Popm()'s comment).
+//
 // The original reads the player's position/speed via the global `py`
 // (Player_t); since no Player singleton is wired up yet (M1 only defined
 // the data shape), callers pass both in explicitly instead.
@@ -24,6 +31,13 @@ public sealed class MonsterManager
     // src/monster.h's MON_MIN_INDEX_ID comment.
     public Monster[] Monsters { get; } = new Monster[MonsterConstants.MonTotalAllocations];
     public int NextFreeMonsterId { get; private set; } = MonsterConfig.MonMinIndexId;
+
+    // src/monster_manager.cpp:17 monster_multiply_total -- total count of
+    // in-progress creature reproductions this level. Nothing increments
+    // this yet (monster.cpp's reproduction logic is M9), so it stays 0
+    // until then; RemoveMonsterFromLevel()'s guarded decrement is already
+    // safe for that.
+    public int MonsterMultiplyTotal { get; set; }
 
     private readonly Model.Generated.Dungeon _dg;
 
@@ -67,14 +81,15 @@ public sealed class MonsterManager
         {
             // compactMonsters() (src/monster_manager.cpp:250) is unreachable
             // here: even the busiest level-1 seed places ~24 of 125 slots.
-            // It also depends on dungeonDeleteMonster()/
-            // dungeonRemoveMonsterFromLevel() (src/dungeon.cpp), deferred to
-            // M5 -- see migration-plan.md. Throwing (rather than silently
+            // DeleteMonster()/RemoveMonsterFromLevel() landed in M5, but
+            // compactMonsters() itself still needs hack_monptr
+            // (src/monster.h), a global tied to monster.cpp's updateMonsters()
+            // AI loop -- that's M9, not M5. Throwing (rather than silently
             // returning failure, which the original treats as a soft error)
             // makes it loud if a future milestone's monster count ever gets
-            // this high before M5 lands.
+            // this high before M9 lands.
             throw new NotImplementedException(
-                "compactMonsters() is not ported yet (deferred to M5); monster allocation should never reach capacity before then.");
+                "compactMonsters() is not ported yet (deferred to M9); monster allocation should never reach capacity before then.");
         }
 
         return NextFreeMonsterId++;
@@ -182,5 +197,61 @@ public sealed class MonsterManager
             // if it fails though.
             _ = PlaceNew(position, l, creatureSleeping, playerPos, playerSpeedFlag);
         }
+    }
+
+    // src/dungeon.cpp:351 dungeonMoveCreatureRecord()
+    public void MoveCreatureRecord(Coord from, Coord to)
+    {
+        var id = _dg.Floor[from.Y, from.X].CreatureId;
+        _dg.Floor[from.Y, from.X].CreatureId = 0;
+        _dg.Floor[to.Y, to.X].CreatureId = id;
+    }
+
+    // src/dungeon.cpp:506 dungeonDeleteMonster()
+    public void DeleteMonster(int id)
+    {
+        RemoveMonsterFromLevel(id);
+        DeleteMonsterRecord(id);
+    }
+
+    // src/dungeon.cpp:514 dungeonRemoveMonsterFromLevel() -- forces the
+    // monster's HP negative (in case something, e.g. being eaten, left it
+    // positive) and clears its floor-grid slot, without yet compacting it
+    // out of the Monsters array. Called directly by breath()/creature code
+    // in the original for exactly that reason.
+    public void RemoveMonsterFromLevel(int id)
+    {
+        Monsters[id].Hp = -1;
+
+        var pos = Monsters[id].Pos;
+        _dg.Floor[pos.Y, pos.X].CreatureId = 0;
+
+        if (Monsters[id].Lit)
+        {
+            ScreenRendering.LiteSpot(_dg, pos);
+        }
+
+        if (MonsterMultiplyTotal > 0)
+        {
+            MonsterMultiplyTotal--;
+        }
+    }
+
+    // src/dungeon.cpp:534 dungeonDeleteMonsterRecord() -- compacts the
+    // Monsters array by swapping the deleted slot with the current last
+    // entry, same free-list-by-swap trick as TreasureList.Pusht().
+    public void DeleteMonsterRecord(int id)
+    {
+        var lastId = NextFreeMonsterId - 1;
+        var monster = Monsters[lastId];
+
+        if (id != lastId)
+        {
+            _dg.Floor[monster.Pos.Y, monster.Pos.X].CreatureId = (byte)id;
+            Monsters[id] = Monsters[lastId];
+        }
+
+        Monsters[lastId] = default;
+        NextFreeMonsterId--;
     }
 }

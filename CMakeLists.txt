@@ -328,3 +328,17 @@ list(APPEND item_magic_dump_source_files tools/item_magic_dump/item_magic_dump.c
 add_executable(item_magic_dump ${item_magic_dump_source_files})
 target_link_libraries(item_magic_dump ${CURSES_LIBRARIES})
 set_target_properties(item_magic_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
+# LOS matrix dump harness: verifies the .NET migration's port of los()
+# (M5, Umoria.Core.Dungeon.Los) against the real compiled C++ game. See
+# tools/los_dump/los_dump.cpp for details.
+#
+set(los_dump_source_files ${source_files})
+list(REMOVE_ITEM los_dump_source_files ${source_dir}/main.cpp)
+list(APPEND los_dump_source_files tools/los_dump/los_dump.cpp)
+
+add_executable(los_dump ${los_dump_source_files})
+target_link_libraries(los_dump ${CURSES_LIBRARIES})
+set_target_properties(los_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
