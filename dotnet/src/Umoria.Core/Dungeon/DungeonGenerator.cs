@@ -5,7 +5,8 @@ using Umoria.Core.Rng;
 namespace Umoria.Core.Dungeon;
 
 // Port of src/dungeon_generate.cpp's dungeonGenerate() and the helpers it
-// needs, scoped down from the original for this proof-of-concept:
+// needs. As of M4 this is a faithful port of everything dungeonGenerate()
+// does except the vault branch:
 //
 //   INCLUDED (faithfully ported, same RNG call sequence as the C++):
 //     - plain rectangular rooms (dungeonBuildRoom) and the "overlapping
@@ -16,32 +17,38 @@ namespace Umoria.Core.Dungeon;
 //     - granite wall fill + magma/quartz streamers + boundary walls
 //     - up/down staircase placement
 //     - picking the player's starting spot
+//     - monster placement (monsterPlaceNewWithinDistance, see MonsterManager)
+//     - general object/treasure allocation (dungeonAllocateAndPlaceObject
+//       and everything under it -- traps, rubble, gold, random objects,
+//       item magic; see ObjectPlacement/TreasureMagic)
 //
 //   DEFERRED (not ported -- see the migration plan's full-migration phase):
 //     - the two vault-containing unusual room types (inner rooms, cross
-//       shaped rooms) -- both can spawn monsters/traps inside vaults via
-//       monsterSummon()/dungeonSetTrap(), which pulls in the monster and
-//       trap subsystems. When the real C++ would pick one of these two
-//       room types, this port substitutes the overlapping-rectangles
-//       builder instead, so the level stays fully connected and walkable,
-//       but output will NOT match the original byte-for-byte for seeds
-//       that hit this case.
+//       shaped rooms) -- both can spawn monsters/traps/objects inside
+//       vaults via monsterSummon()/dungeonSetTrap()/
+//       dungeonPlaceRandomObjectAt(), which pulls in the monster and trap
+//       subsystems well beyond what their own non-vault call sites need.
+//       When the real C++ would pick one of these two room types, this
+//       port substitutes the overlapping-rectangles builder instead, so
+//       the level stays fully connected and walkable, but output will NOT
+//       match the original byte-for-byte for seeds that hit this case.
+//       Confirmed still unreachable at level 1 (current_level >
+//       randomNumber(DUN_UNUSUAL_ROOMS=300) is never true there), so the
+//       golden trace stays a genuine comparison for the levels it covers.
 //     - monsterPlaceWinning() (only reachable past the still-excluded vault
 //       branch's level range; see MonsterManager for the rest of monster
 //       placement, which IS ported)
-//     - general object/treasure allocation (dungeonAllocateAndPlaceObject)
-//     - rubble and traps (no vaults => dungeonPlaceVaultTrap is unreachable)
 //
 // Because the original interleaves ALL of the above into one shared RNG
 // stream, this port is NOT a byte-identical golden-trace match against the
-// original C++ for arbitrary seeds -- only a structurally faithful port of
-// the subset above. True byte-for-byte fidelity would require porting the
-// deferred subsystems too (see MEMORY/plan retrospective).
+// original C++ for arbitrary seeds -- only for seeds/levels that never
+// pick the deferred vault branch (confirmed true for level 1; see above).
 public sealed class DungeonGenerator
 {
     private readonly Model.Generated.Dungeon _dg;
     private readonly TreasureList _treasure;
     private readonly MonsterManager _monsters;
+    private readonly ObjectPlacement _objects;
 
     // src/dungeon_generate.cpp: static Coord_t doors_tk[100]; static int door_index;
     private readonly Coord[] _doorsFound = new Coord[100];
@@ -52,6 +59,7 @@ public sealed class DungeonGenerator
         _dg = dg;
         _treasure = treasure;
         _monsters = monsters;
+        _objects = new ObjectPlacement(dg, treasure);
     }
 
     // Port of generateCave()'s dungeon-level branch (current_level >= 1).
@@ -194,11 +202,22 @@ public sealed class DungeonGenerator
         // scoped generator can have changed it from its startup default.
         _monsters.PlaceNewWithinDistance(RandomNumber.Next(8) + MonsterConfig.MonMinPerLevel + allocLevel, 0, true, playerStart, 0);
 
-        // The original also seeds dungeonAllocateAndPlaceObject/
-        // monsterPlaceWinning from here; those are deferred (see class
-        // comment).
+        _objects.AllocateAndPlaceObject(IsSetCorridors, 3, RandomNumber.Next(allocLevel), playerStart);
+        _objects.AllocateAndPlaceObject(IsSetRooms, 5, RandomNumber.NextNormal(DungeonGenerationConfig.Objects.LevelObjectsPerRoom, 3), playerStart);
+        _objects.AllocateAndPlaceObject(IsSetFloors, 5, RandomNumber.NextNormal(DungeonGenerationConfig.Objects.LevelObjectsPerCorridor, 3), playerStart);
+        _objects.AllocateAndPlaceObject(IsSetFloors, 4, RandomNumber.NextNormal(DungeonGenerationConfig.Objects.LevelTotalGoldAndGems, 3), playerStart);
+        _objects.AllocateAndPlaceObject(IsSetFloors, 1, RandomNumber.Next(allocLevel), playerStart);
+
+        // The original also seeds monsterPlaceWinning from here; deferred
+        // along with the rest of the vault branch (see class comment).
         return playerStart;
     }
+
+    // src/dungeon_generate.cpp:982-992 -- functions to emulate the original
+    // Pascal sets, used as dungeonAllocateAndPlaceObject()'s set_function.
+    private static bool IsSetRooms(byte featureId) => featureId == TileConstants.TileDarkFloor || featureId == TileConstants.TileLightFloor;
+    private static bool IsSetCorridors(byte featureId) => featureId == TileConstants.TileCorrFloor || featureId == TileConstants.TileBlockedFloor;
+    private static bool IsSetFloors(byte featureId) => featureId <= TileConstants.MaxCaveFloor;
 
     // src/dungeon_generate.cpp:331 dungeonBuildRoom()
     private void BuildRoom(Coord coord)
@@ -583,7 +602,7 @@ public sealed class DungeonGenerator
 
                     if (RandomNumber.Next(chanceOfTreasure) == 1)
                     {
-                        PlaceGold(spot);
+                        _objects.PlaceGold(spot);
                     }
                 }
             }
@@ -607,73 +626,56 @@ public sealed class DungeonGenerator
         return false;
     }
 
-    // src/dungeon.cpp:254 dungeonPlaceGold() -- cost/value math is replaced
-    // with placeholder RNG draws (see TreasureStub) since it never affects
-    // control flow and the item/cost system itself is deferred.
-    private void PlaceGold(Coord coord)
-    {
-        var id = _treasure.Allocate();
-        _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-
-        _ = RandomNumber.Next(_dg.CurrentLevel + 2); // gold_type_id roll
-        if (RandomNumber.Next(12) == 1) // config::treasure::TREASURE_CHANCE_OF_GREAT_ITEM
-        {
-            _ = RandomNumber.Next(_dg.CurrentLevel + 1);
-        }
-
-        _ = RandomNumber.Next(1); // placeholder for randomNumber((int)cost)
-        _ = RandomNumber.Next(8);
-    }
-
     // --- Door placement: src/dungeon_generate.cpp:163-230 ---
 
     private void PlaceOpenDoor(Coord coord)
     {
-        var id = _treasure.Allocate();
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvOpenDoor;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjOpenDoor);
         _dg.Floor[coord.Y, coord.X].FeatureId = TileConstants.TileCorrFloor;
     }
 
     private void PlaceBrokenDoor(Coord coord)
     {
-        var id = _treasure.Allocate();
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvOpenDoor;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjOpenDoor);
         _dg.Floor[coord.Y, coord.X].FeatureId = TileConstants.TileCorrFloor;
+        _treasure[id].MiscUse = 1;
     }
 
     private void PlaceClosedDoor(Coord coord)
     {
-        var id = _treasure.Allocate();
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvClosedDoor;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjClosedDoor);
         _dg.Floor[coord.Y, coord.X].FeatureId = TileConstants.TileBlockedFloor;
     }
 
     private void PlaceLockedDoor(Coord coord)
     {
-        var id = _treasure.Allocate();
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvClosedDoor;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjClosedDoor);
         _dg.Floor[coord.Y, coord.X].FeatureId = TileConstants.TileBlockedFloor;
-        _ = RandomNumber.Next(10); // misc_use (lock strength); field omitted, see TreasureStub
+        _treasure[id].MiscUse = (short)(RandomNumber.Next(10) + 10);
     }
 
     private void PlaceStuckDoor(Coord coord)
     {
-        var id = _treasure.Allocate();
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvClosedDoor;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjClosedDoor);
         _dg.Floor[coord.Y, coord.X].FeatureId = TileConstants.TileBlockedFloor;
-        _ = RandomNumber.Next(10); // misc_use (stuck strength); field omitted
+        _treasure[id].MiscUse = (short)(-RandomNumber.Next(10) - 10);
     }
 
     private void PlaceSecretDoor(Coord coord)
     {
-        var id = _treasure.Allocate();
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvSecretDoor;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjSecretDoor);
         _dg.Floor[coord.Y, coord.X].FeatureId = TileConstants.TileBlockedFloor;
     }
 
@@ -720,18 +722,18 @@ public sealed class DungeonGenerator
     private void PlaceUpStairs(Coord coord)
     {
         // original: dungeonDeleteObject(coord) if treasure_id != 0 --
-        // unreachable in this scoped generator (stairs are placed onto
-        // tiles not yet carrying a treasure_id).
-        var id = _treasure.Allocate();
+        // confirmed unreachable here: dungeonPlaceStairs()'s own search
+        // loop only ever calls this when treasure_id == 0 already.
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvUpStair;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjUpStair);
     }
 
     private void PlaceDownStairs(Coord coord)
     {
-        var id = _treasure.Allocate();
+        var id = _treasure.Popt();
         _dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
-        _treasure[id].CategoryId = TreasureCategory.TvDownStair;
+        _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjDownStair);
     }
 
     private void PlaceStairs(int stairType, int number, int walls)

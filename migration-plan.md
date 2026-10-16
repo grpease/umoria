@@ -25,7 +25,7 @@ generation (initially feared otherwise).
 - [x] M1 — Core structs: Creature_t, Monster_t, Inventory_t, Player_t
 - [x] M2 — Monster placement
 - [x] M3 — Item magic/enchantment engine
-- [ ] M4 — Object/treasure placement *(partial: TreasureStub.cs exists only as a minimal door/stair/gold-slot placeholder, not real object/treasure placement)*
+- [x] M4 — Object/treasure placement
 - [ ] M5 — Dungeon lighting & line-of-sight
 - [ ] M6 — Character creation
 - [ ] M7 — Player status-effects subsystem
@@ -106,14 +106,17 @@ needed.
 																											  
 - Scope: dungeonAllocateAndPlaceObject, dungeonPlaceRandomObjectAt, dungeonPlaceRandomObjectNear,               
 dungeonPlaceGold, dungeonSetTrap, dungeonPlaceRubble, and completing game_objects.cpp's                       
-popt/pusht/itemGetRandomObjectId/compactObjects (partially stubbed already via TreasureList.Allocate()).      
+popt/itemGetRandomObjectId. Done.                                                                              
 - Size: M. Depends on: M2 (shares the same RNG sequence inside dungeonGenerate()), M3 (object placement calls   
 into it directly).                                                                                            
-- Verify: extend the golden-trace harness to exercise the real dungeonGenerate() (not the truncated test-only   
-hook) for level 1, dumping floor grid + monster list + treasure list. This is the milestone where             
-generateCaveLayoutOnlyForTesting can likely be retired — the only remaining exclusion after this is vaults.   
-- Defer: vault-containing unusual rooms — re-confirm the current_level > randomNumber(300) reachability         
-argument still holds once this milestone's RNG draws are in (one-line sanity check, not expected to change).  
+- Verify: extended the golden-trace harness to exercise the real dungeonGenerate() (not the truncated test-only 
+hook) for level 1, dumping floor grid + monster list + treasure list. generateCaveLayoutOnlyForTesting was     
+retired — the only remaining exclusion is vaults.                                                              
+- Defer: vault-containing unusual rooms (re-confirmed current_level > randomNumber(300) still never true at    
+level 1, so the golden trace stays a genuine comparison). Also NOT ported: pusht()/compactObjects() --         
+confirmed unreachable through M4 (compactObjects() needs Player.Pos (M6) and dungeonLiteSpot()/                
+dungeonDeleteObject() (M5, pure rendering); its only caller, popt(), is also the original's own "extremely     
+rare" path at LEVEL_MAX_OBJECTS=175). Revisit once M5/M6 land.  
 																											  
 ### M5 — Dungeon lighting & line-of-sight                                                                           
 																											  

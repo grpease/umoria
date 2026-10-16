@@ -1,18 +1,7 @@
-namespace Umoria.Core.Dungeon;
+using Umoria.Core.Config;
+using Umoria.Core.Model.Generated;
 
-// Minimal stand-in for game.treasure.list[]/Inventory_t -- the original
-// game's full item/treasure system (inventory.cpp, treasure.cpp,
-// identification.cpp) is deferred to the full migration. This stub exists
-// only so door/stair/gold placement (which the real dungeonGenerate()
-// performs inline) has somewhere to record "a treasure_id slot is occupied
-// and what kind of thing it is" without pulling in the whole item catalog.
-//
-// CategoryId mirrors just the handful of TV_* category ids dungeon
-// generation itself inspects (doors, stairs) -- see TreasureCategory.
-public struct TreasureStub
-{
-    public byte CategoryId;
-}
+namespace Umoria.Core.Dungeon;
 
 // From src/treasure.h. Originally only had the door/stair subset dungeon
 // generation needs; extended for M3 (item magic) to the full TV_* list,
@@ -77,21 +66,40 @@ public static class TreasureCategory
     public const byte TvMaxVisible = 110;
 }
 
-// Port of popt()/game.treasure.list from src/game_objects.cpp: a simple
-// bump allocator over a fixed-size slot array. The real popt() also
-// compacts the list when full (compactObjects()); the POC's single level
-// never places enough objects to hit that path, so it's omitted.
+// Port of game.treasure (src/game.h) and popt() (src/game_objects.cpp:70) --
+// the real item-instance list, replacing the bump-allocator TreasureStub
+// that stood in for it through M2/M3.
+//
+// pusht()/compactObjects() are NOT ported: both are confirmed unreachable
+// for anything through M4. compactObjects() needs Player.Pos (M6, no
+// Player singleton exists yet) and dungeonDeleteObject()/dungeonLiteSpot()
+// (M5, pure rendering); its only caller is popt() when the list is full,
+// which is also the original's own "extremely rare" path (see
+// LevelMaxObjects' comment). pusht()'s only other callers are
+// dungeonDeleteObject() itself, save/load (M12), and store restocking
+// (M13) -- none in scope yet.
 public sealed class TreasureList
 {
-    public const int LevelMaxObjects = 100;
+    public const int LevelMaxObjects = GameConstants.LevelMaxObjects;
 
-    private readonly TreasureStub[] _slots = new TreasureStub[LevelMaxObjects];
-    private int _nextFreeId = 1; // slot 0 means "no treasure" (Tile.TreasureId == 0)
+    public Inventory[] List { get; } = new Inventory[LevelMaxObjects];
+    public int CurrentId { get; private set; } = TreasureConfig.MinTreasureListId;
 
-    public ref TreasureStub this[int id] => ref _slots[id];
+    public ref Inventory this[int id] => ref List[id];
 
-    public int Allocate()
+    // src/game_objects.cpp:70 popt()
+    public int Popt()
     {
-        return _nextFreeId++;
+        if (CurrentId == LevelMaxObjects)
+        {
+            // See the class comment above for why compactObjects() isn't
+            // ported yet. Throwing (rather than silently wrapping or
+            // overwriting) makes it loud if a future milestone's object
+            // count ever gets this high before M5/M6 land.
+            throw new NotImplementedException(
+                "compactObjects() is not ported yet (deferred to M5/M6); treasure allocation should never reach capacity before then.");
+        }
+
+        return CurrentId++;
     }
 }

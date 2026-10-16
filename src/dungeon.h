@@ -91,10 +91,6 @@ bool dungeonDeleteObject(Coord_t const &coord);
 // generate the dungeon
 void generateCave();
 
-// Test-only entry point for the golden-trace harness (tools/golden_trace) --
-// see the definition in dungeon_generate.cpp for what it deliberately omits.
-Coord_t generateCaveLayoutOnlyForTesting(int level, uint32_t seed);
-
 // Line of Sight
 bool los(Coord_t from, Coord_t to);
 void look();

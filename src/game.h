@@ -77,6 +77,13 @@ extern int16_t sorted_objects[MAX_DUNGEON_OBJECTS];
 extern uint16_t normal_table[NORMAL_TABLE_SIZE];
 extern int16_t treasure_levels[TREASURE_MAX_LEVELS + 1];
 
+// src/game_run.cpp -- populates treasure_levels[]/sorted_objects[] from
+// game_objects[]. Normally called once from startMoria(); not static so the
+// .NET migration's golden-trace harness can call it too, bypassing
+// startMoria() entirely (same reason initializeMonsterLevels() isn't static;
+// see monster.h).
+void initializeTreasureLevels();
+
 void seedsInitialize(uint32_t seed);
 void seedSet(uint32_t seed);
 void seedResetToOldSeed();

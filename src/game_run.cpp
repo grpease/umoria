@@ -10,7 +10,6 @@
 static void playDungeon();
 
 static void initializeCharacterInventory();
-static void initializeTreasureLevels();
 static void priceAdjust();
 static char originalCommands(char command);
 static void doCommand(char command);
@@ -185,9 +184,9 @@ static void initializeCharacterInventory() {
 }
 
 // Initializes M_LEVEL array for use with PLACE_MONSTER -RAK-
-// Not static: also called from generateCaveLayoutOnlyForTesting() (see
-// src/dungeon_generate.cpp), the .NET migration's golden-trace test entry
-// point, which bypasses startMoria() entirely.
+// Not static: also called directly from tools/golden_trace/golden_trace_harness.cpp,
+// the .NET migration's golden-trace test entry point, which bypasses
+// startMoria() entirely.
 void initializeMonsterLevels() {
     for (auto &level : monster_levels) {
         level = 0;
@@ -203,7 +202,10 @@ void initializeMonsterLevels() {
 }
 
 // Initializes T_LEVEL array for use with PLACE_OBJECT -RAK-
-static void initializeTreasureLevels() {
+// Not static: also called directly from tools/golden_trace/golden_trace_harness.cpp,
+// the .NET migration's golden-trace test entry point, which bypasses
+// startMoria() entirely (same reason initializeMonsterLevels() isn't static).
+void initializeTreasureLevels() {
     for (auto &level : treasure_levels) {
         level = 0;
     }

@@ -10,16 +10,16 @@ namespace Umoria.Core.Tests.GoldenTrace;
 // toolchain -- see dotnet/tests/GoldenTraces/*.txt for the checked-in
 // baselines and how they were produced).
 //
-// The C++ harness calls generateCaveLayoutOnlyForTesting(), a test-only
-// function added to src/dungeon_generate.cpp that mirrors generateCave()'s
-// dungeon-level path and dungeonGenerate() up through picking the player's
-// start spot and placing the level's random monsters, stopping before
-// object placement -- exactly the subset DungeonGenerator/MonsterManager
-// implement. Level 1 specifically is used because the "unusual room"
-// (vault) selection can never trigger there (current_level >
-// randomNumber(DUN_UNUSUAL_ROOMS=300) is never true at level 1), so this is
-// a genuine apples-to-apples comparison, not just a coincidental partial
-// match.
+// Through M3, the C++ harness called generateCaveLayoutOnlyForTesting(), a
+// test-only function that stopped before object placement, since the .NET
+// port didn't implement it yet. M4 ports object placement, so the harness
+// now calls the real generateCave() directly, and this test exercises
+// DungeonGenerator/MonsterManager/ObjectPlacement/TreasureMagic together --
+// everything generateCave() does except the vault branch. Level 1
+// specifically is used because the "unusual room" (vault) selection can
+// never trigger there (current_level > randomNumber(DUN_UNUSUAL_ROOMS=300)
+// is never true at level 1), so this is a genuine apples-to-apples
+// comparison, not just a coincidental partial match.
 public class GoldenTraceTests
 {
     [Theory]
@@ -31,10 +31,18 @@ public class GoldenTraceTests
         var path = Path.Combine(AppContext.BaseDirectory, "GoldenTraces", fileName);
         var expected = GoldenTraceFile.Parse(path);
 
+        // missiles_counter (TreasureMagic.MissilesCounter) is a true
+        // process-global in the original, so each baseline file was
+        // captured by its own golden_trace_harness.exe invocation -- a
+        // fresh process, with the counter starting at 0. Reset it here too,
+        // so this test doesn't depend on what other tests left behind in
+        // the shared static (same reason ItemMagicTraceTests resets it).
+        TreasureMagic.MissilesCounter = 0;
         MoriaRng.SetRandomSeed(expected.Seed);
         var dg = new Model.Generated.Dungeon();
         var monsters = new MonsterManager(dg);
-        var generator = new DungeonGenerator(dg, new TreasureList(), monsters);
+        var treasure = new TreasureList();
+        var generator = new DungeonGenerator(dg, treasure, monsters);
         var playerStart = generator.Generate(expected.Level);
 
         Assert.Equal(expected.Height, dg.Height);
@@ -88,5 +96,43 @@ public class GoldenTraceTests
         }
 
         Assert.True(monsterMismatches.Count == 0, $"monster mismatches:\n" + string.Join("\n", monsterMismatches));
+
+        Assert.Equal(expected.Treasures.Length, treasure.CurrentId - Config.TreasureConfig.MinTreasureListId);
+
+        var treasureMismatches = new List<string>();
+        foreach (var expectedTreasure in expected.Treasures)
+        {
+            var actual = treasure[expectedTreasure.Id];
+            var actualFields = (
+                ItemId: (int)actual.Id, SpecialNameId: (int)actual.SpecialNameId, Flags: actual.Flags,
+                CategoryId: (int)actual.CategoryId, Sprite: (int)actual.Sprite, MiscUse: (int)actual.MiscUse,
+                Cost: actual.Cost, SubCategoryId: (int)actual.SubCategoryId, ItemsCount: (int)actual.ItemsCount,
+                Weight: (int)actual.Weight, ToHit: (int)actual.ToHit, ToDamage: (int)actual.ToDamage,
+                Ac: (int)actual.Ac, ToAc: (int)actual.ToAc, DiceCount: (int)actual.Damage.Count,
+                DiceSides: (int)actual.Damage.Sides, DepthFirstFound: (int)actual.DepthFirstFound,
+                Identification: (int)actual.Identification);
+            var expectedFields = (
+                expectedTreasure.ItemId, expectedTreasure.SpecialNameId, expectedTreasure.Flags,
+                expectedTreasure.CategoryId, expectedTreasure.Sprite, expectedTreasure.MiscUse, expectedTreasure.Cost,
+                expectedTreasure.SubCategoryId, expectedTreasure.ItemsCount, expectedTreasure.Weight,
+                expectedTreasure.ToHit, expectedTreasure.ToDamage, expectedTreasure.Ac, expectedTreasure.ToAc,
+                expectedTreasure.DiceCount, expectedTreasure.DiceSides, expectedTreasure.DepthFirstFound,
+                expectedTreasure.Identification);
+
+            if (!actualFields.Equals(expectedFields))
+            {
+                treasureMismatches.Add($"treasure {expectedTreasure.Id}: expected {expectedFields}, got {actualFields}");
+            }
+
+            // The floor grid dump only encodes feature_id, not treasure_id,
+            // so position is cross-checked separately here rather than via
+            // the floor-grid comparison above.
+            if (dg.Floor[expectedTreasure.Y, expectedTreasure.X].TreasureId != expectedTreasure.Id)
+            {
+                treasureMismatches.Add($"treasure {expectedTreasure.Id}: expected at ({expectedTreasure.Y},{expectedTreasure.X})");
+            }
+        }
+
+        Assert.True(treasureMismatches.Count == 0, $"treasure mismatches:\n" + string.Join("\n", treasureMismatches));
     }
 }

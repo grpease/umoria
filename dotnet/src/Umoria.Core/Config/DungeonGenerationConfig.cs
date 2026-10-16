@@ -16,4 +16,30 @@ public static class DungeonGenerationConfig
     public const int DunQuartzStreamer = 2; // Number of quartz streamers
     public const int DunQuartzTreasure = 40; // 1/x chance of treasure per quartz
     public const int DunUnusualRooms = 300; // Level/x chance of unusual room
+
+    // from config::dungeon::objects in src/config.cpp
+    public static class Objects
+    {
+        public const int ObjOpenDoor = 367;
+        public const int ObjClosedDoor = 368;
+        public const int ObjSecretDoor = 369;
+        public const int ObjUpStair = 370;
+        public const int ObjDownStair = 371;
+        public const int ObjStoreDoor = 372;
+        public const int ObjTrapList = 378;
+        public const int ObjRubble = 396;
+        public const int ObjMush = 397;
+        public const int ObjScareMon = 398;
+        public const int ObjGoldList = 399;
+        public const int ObjNothing = 417;
+        public const int ObjRuinedChest = 418;
+        public const int ObjWizard = 419;
+
+        public const int MaxGoldTypes = 18; // Number of different types of gold
+        public const int MaxTraps = 18; // Number of defined traps
+
+        public const int LevelObjectsPerRoom = 7; // Amount of objects for rooms
+        public const int LevelObjectsPerCorridor = 2; // Amount of objects for corridors
+        public const int LevelTotalGoldAndGems = 2; // Amount of gold (and gems)
+    }
 }

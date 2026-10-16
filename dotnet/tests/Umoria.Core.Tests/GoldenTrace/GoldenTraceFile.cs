@@ -6,6 +6,15 @@ public sealed record GoldenTraceMonster(
     int Id, int CreatureId, int Hp, int SleepCount, int Y, int X, int Speed,
     int DistanceFromPlayer, bool Lit, int StunnedAmount, int ConfusedAmount);
 
+// A single treasure line from the trace: "treasure <id> <y> <x> <item_id>
+// <special_name_id> <flags> <category_id> <sprite> <misc_use> <cost>
+// <sub_category_id> <items_count> <weight> <to_hit> <to_damage> <ac>
+// <to_ac> <dice> <sides> <depth_first_found> <identification>".
+public sealed record GoldenTraceTreasure(
+    int Id, int Y, int X, int ItemId, int SpecialNameId, uint Flags, int CategoryId, int Sprite, int MiscUse,
+    int Cost, int SubCategoryId, int ItemsCount, int Weight, int ToHit, int ToDamage, int Ac, int ToAc,
+    int DiceCount, int DiceSides, int DepthFirstFound, int Identification);
+
 // Parses the text format emitted by tools/golden_trace/golden_trace_harness.cpp
 // (and golden_trace_harness.cs's --- see GoldenTraceTests for the C# side ---)
 // so both can be diffed against the same checked-in baseline files.
@@ -19,6 +28,7 @@ public sealed class GoldenTraceFile
     public required int Width { get; init; }
     public required byte[,] Floor { get; init; }
     public required GoldenTraceMonster[] Monsters { get; init; }
+    public required GoldenTraceTreasure[] Treasures { get; init; }
 
     public static GoldenTraceFile Parse(string path)
     {
@@ -66,6 +76,38 @@ public sealed class GoldenTraceFile
                 ConfusedAmount: int.Parse(parts[11]));
         }
 
+        // line[monsterCountLine + 1 + monsterCount] is "treasures <count>";
+        // treasure lines follow.
+        var treasureCountLine = monsterCountLine + 1 + monsterCount;
+        var treasureCount = int.Parse(lines[treasureCountLine].Split(' ')[1]);
+        var treasures = new GoldenTraceTreasure[treasureCount];
+        for (var i = 0; i < treasureCount; i++)
+        {
+            var parts = lines[treasureCountLine + 1 + i].Split(' ');
+            treasures[i] = new GoldenTraceTreasure(
+                Id: int.Parse(parts[1]),
+                Y: int.Parse(parts[2]),
+                X: int.Parse(parts[3]),
+                ItemId: int.Parse(parts[4]),
+                SpecialNameId: int.Parse(parts[5]),
+                Flags: uint.Parse(parts[6]),
+                CategoryId: int.Parse(parts[7]),
+                Sprite: int.Parse(parts[8]),
+                MiscUse: int.Parse(parts[9]),
+                Cost: int.Parse(parts[10]),
+                SubCategoryId: int.Parse(parts[11]),
+                ItemsCount: int.Parse(parts[12]),
+                Weight: int.Parse(parts[13]),
+                ToHit: int.Parse(parts[14]),
+                ToDamage: int.Parse(parts[15]),
+                Ac: int.Parse(parts[16]),
+                ToAc: int.Parse(parts[17]),
+                DiceCount: int.Parse(parts[18]),
+                DiceSides: int.Parse(parts[19]),
+                DepthFirstFound: int.Parse(parts[20]),
+                Identification: int.Parse(parts[21]));
+        }
+
         return new GoldenTraceFile
         {
             Seed = seed,
@@ -76,6 +118,7 @@ public sealed class GoldenTraceFile
             Width = width,
             Floor = floor,
             Monsters = monsters,
+            Treasures = treasures,
         };
     }
 }

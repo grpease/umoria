@@ -1,6 +1,6 @@
 seed 12345
 level 1
-rnd_seed 1016193754
+rnd_seed 1306099082
 player_start 58 106
 height 66
 width 198
@@ -26,13 +26,13 @@ fccccccccccccccccccccccccccccccccccccccccc222222222222cccccccccccccccccccccc3333
 fcccccccccccccccccccccccccccccccccccccccccccccccc3cccccccccccccccccccccccccccc33cc3cc3ccddcdccccccccccccdddccccc3cccccccccc33333eecce3eccccccccccccccccccccccccccccccccccccc3cccc22222222ccccccccccccf
 fdddccddddddddddddcddddccddcdcddcdcdcdcddcdccccdc333dddcdddddccdddcddcddcccddd33dc3dd3dddcddcccccccccccccdddcccc3cccccccccc3cceceeee33cccccccccccccccccccccccccccccccccccccc3333422222222ccccccccccccf
 fcddcdddcdccdddcdcdcdddddccdddcdddcdcddccddddcddccd3dccdddccdddddcddcdccdccddd33cd3333ddddcdddccccccccccdddcdccc4cccccccccc3333333333ccccccccccccccccccccccccccccccccccccc333cccccccc3cccccccccccccccf
-fcdcddddddcdcdcdcdddddccdddddddcddcdddddcdcddddcddd3ddccccdccdcccdddcddd3ddcdd33ddccc4ccdddddcccccccccccccdddcc334333cccccc33eceeecccccccccccccccccccccccccccccccccccccccc3cccccccccc3cccccccccccccccf
+fcdcddddddcdcdcdcdddddccdddddddcddcdddddcdcddddcddd3ddccccdccdcccdddcddd3ddcdd33ddccc4ccdddddcccccccccccccdddcc334433cccccc33eceeecccccccccccccccccccccccccccccccccccccccc3cccccccccc3cccccccccccccccf
 fcdccddddddcdccdcdcddcdddddcdcdcdcccddddd33333333333dccddddccccdcddddddd3ddcc333333343ddccdcddddccccccccddccccc3ccc4cccccce33ceeeccccccccccccccccccccccccccccccccccccccccc3cccccccccc3cccccccccccccccf
 fdcddcddcdddccdddcdddcccddddccccdcdcdddcddddddcdd3dccddcdddddcddcdcddcdd3ddddd3dddddc3cddcddccdddcccccccccddc222222222ccccc33ecccccccccccccccccccccccccccccccccccccccccccc3cccccccccc3cccccccccccccccf
 fcccccccccccccccccccccccccccccccccccccccccccccccc3cccccccccccccccccccccc3ccccc3cccccc3cccccccdcdcdccccccdcddd222222222cce343eccccccccccccccccccccccccccccccccccccccccccccc3cccccccccc3cccccccccccccccf
 fcccccccccccccccccccccccccccccccccccccccccccccccc3ccccccccccccccc33333333ccccc3cccccc3333333333cddcccccccccdc222222222ccc3c4ecceccccccccccccccccccc22222cccccccccccccccccc3cccccccccc3cccccccccccccccf
 fcccccccccccccccccccccccccccccccccccccccccc2222222222cccccccccccc3cccccc3ccccc3cccccc3cccccccd4dcdcd33333333d222222222ce33c3eccccccccccc33333cccccc22222cccccccccccc3333333cccccccccc3cccccccccccccccf
-fccccccccccccccccccccccc333333343333333333322222222223333333333333ccccc33333333cccccc333333334343333333333333222222222343333cecccccccccc3ccc333333322222cccccccccccc3cccccccccccccccc3cccccccccccccccf
+fccccccccccccccccccccccc333333343333333333322222222223333333333333ccccc33333333cccccc433333334343333333333333222222222343333cecccccccccc3ccc333333322222cccccccccccc3cccccccccccccccc3cccccccccccccccf
 fccccccccccccccccccccccc3ccccc4cccccccccccc2222222222ccccccccccccccccccccccccc3cccccccccccccccccedcdd3cccdd3d222222222eeeeccccccc33333333cccccccccc22222cccccccccccc3cccccccccccccccc3cccccccccccccccf
 fccccccccccccccccccccccc3ccccc3cccccccccccc2222222222ccccccccccccccccccccccccc3cccccccccccccccccecedd3cdcdc33222222222eeecccccccc3ccccccccccccccccc22222cccccccccccc3cccccccccccccccc3cccccccccccccccf
 fccccccccccccccccccccccc3ccccc3cccccccccccc2222222222ccccccccccccccccccccccccccccccccccccccccccccddddddddcdccccccce3eceeececccccc3cccccccccccccccccccccccccccccccccc3cccccccccccccccc3cccccccccccccccf
@@ -96,3 +96,84 @@ monster 22 8 1 0 49 150 1 48 0 0 0
 monster 23 8 2 0 14 84 1 55 0 0 0
 monster 24 16 13 74 39 178 1 81 0 0 0
 monster 25 16 10 75 38 93 1 26 0 0 0
+treasures 80
+treasure 1 27 118 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 2 38 84 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 3 36 24 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 4 22 115 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 5 7 75 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 6 25 49 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 7 57 82 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 8 50 74 368 0 0 105 43 -16 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 9 60 19 367 0 0 104 39 1 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 10 60 45 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 11 19 176 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 12 46 148 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 13 27 146 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 14 46 124 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 15 8 113 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 16 47 20 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 17 49 103 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 18 49 93 367 0 0 104 39 1 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 19 41 148 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 20 41 156 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 21 45 181 368 0 0 105 43 14 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 22 34 181 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 23 23 43 400 0 0 100 36 0 37 2 1 0 0 0 0 0 0 0 1 0
+treasure 24 18 104 399 0 0 100 36 0 14 1 1 0 0 0 0 0 0 0 1 0
+treasure 25 44 112 400 0 0 100 36 0 19 2 1 0 0 0 0 0 0 0 1 0
+treasure 26 64 130 400 0 0 100 36 0 22 2 1 0 0 0 0 0 0 0 1 0
+treasure 27 16 129 400 0 0 100 36 0 36 2 1 0 0 0 0 0 0 0 1 0
+treasure 28 8 137 400 0 0 100 36 0 17 2 1 0 0 0 0 0 0 0 1 0
+treasure 29 27 119 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 30 24 122 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 31 25 123 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 32 17 132 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 33 22 84 368 0 0 105 43 20 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 34 21 85 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 35 23 85 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 36 8 84 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 37 9 85 368 0 0 105 43 -14 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 38 60 78 367 0 0 104 39 1 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 39 42 150 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 40 43 151 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 41 59 131 367 0 0 104 39 1 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 42 61 131 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 43 21 113 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 44 20 112 368 0 0 105 43 11 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 45 27 31 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 46 28 30 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 47 42 149 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 48 43 148 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 49 42 126 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 50 41 125 367 0 0 104 39 1 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 51 42 147 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 52 20 84 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 53 27 93 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 54 27 95 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 55 26 94 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 56 33 155 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 57 33 157 368 0 0 105 43 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 58 34 156 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 59 58 168 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 60 43 181 369 0 0 109 35 0 0 19 1 0 0 0 0 0 1 1 0 0
+treasure 61 50 68 367 0 0 104 39 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 62 41 49 367 0 0 104 39 1 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 63 17 108 371 0 0 108 62 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 64 29 164 371 0 0 108 62 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 65 20 129 371 0 0 108 62 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 66 29 101 370 0 0 107 60 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 67 17 127 370 0 0 107 60 0 0 1 1 0 0 0 0 0 1 1 0 0
+treasure 68 21 114 396 0 0 103 58 0 0 1 1 0 0 0 0 0 0 0 0 0
+treasure 69 27 85 396 0 0 103 58 0 0 1 1 0 0 0 0 0 0 0 0 0
+treasure 70 18 179 91 0 0 30 93 0 4 1 1 5 0 0 1 0 0 0 1 0
+treasure 71 25 117 31 0 0 23 124 0 10 4 1 20 0 0 0 0 1 4 1 32
+treasure 72 61 153 84 0 0 13 126 1 1 193 26 10 0 0 0 0 1 1 1 0
+treasure 73 50 86 332 0 0 1 115 0 0 1 1 10 0 0 0 0 1 1 1 0
+treasure 74 32 110 400 0 0 100 36 0 41 2 1 0 0 0 0 0 0 0 1 0
+treasure 75 62 11 399 0 0 100 36 0 31 1 1 0 0 0 0 0 0 0 1 0
+treasure 76 60 172 400 0 0 100 36 0 15 2 1 0 0 0 0 0 0 0 1 0
+treasure 77 40 147 400 0 0 100 36 0 40 2 1 0 0 0 0 0 0 0 1 0
+treasure 78 13 50 400 0 0 100 36 0 37 2 1 0 0 0 0 0 0 0 1 0
+treasure 79 45 148 399 0 0 100 36 0 18 1 1 0 0 0 0 0 0 0 1 0
+treasure 80 4 109 380 0 0 101 94 2 0 3 1 0 0 0 0 0 2 6 60 0

@@ -11,10 +11,10 @@ namespace Umoria.Core.Dungeon;
 // required by store restocking (store_inventory.cpp:354).
 //
 // The original takes an item_id and mutates game.treasure.list[item_id] in
-// place; since the real item-instance list doesn't exist yet (M2's
-// TreasureStub only tracks a bare category id for door/stair placement),
-// this operates directly on a ref Inventory instead. Wiring this into a
-// real treasure list is M4's job (object placement) per migration-plan.md.
+// place; this operates directly on a ref Inventory instead, so callers
+// decide how/where the result gets stored. M4 (ObjectPlacement.PlaceRandomObjectAt)
+// is the first real caller, wiring it into TreasureList the same way the
+// original wires it into game.treasure.list.
 //
 // Defer: store-specific pricing (priceAdjust()) stays with stores (M13).
 public static class TreasureMagic

@@ -45,7 +45,7 @@ public class ItemMagicTraceTests
 
                 for (var catalogId = 0; catalogId < DataTreasureData.GameObjects.Length; catalogId++)
                 {
-                    var item = CopyFromCatalog(catalogId);
+                    var item = InventoryCatalog.CopyFromCatalog(catalogId);
                     TreasureMagic.MagicalAbility(ref item, level);
 
                     var row = $"{seed}_{level}_{catalogId}";
@@ -57,34 +57,6 @@ public class ItemMagicTraceTests
         actual["ItemMagic.missiles_counter.value"] = TreasureMagic.MissilesCounter.ToString();
 
         AssertMatches(expected, actual);
-    }
-
-    // Mirrors inventoryItemCopyTo() (src/inventory.cpp:336): builds a fresh
-    // item instance from a read-only catalog row, the same way the real
-    // game does before handing it to magicTreasureMagicalAbility().
-    private static Inventory CopyFromCatalog(int catalogId)
-    {
-        var from = DataTreasureData.GameObjects[catalogId];
-
-        return new Inventory(
-            Id: (ushort)catalogId,
-            SpecialNameId: 0,
-            Inscription: "",
-            Flags: from.Flags,
-            CategoryId: from.CategoryId,
-            Sprite: from.Sprite,
-            MiscUse: from.MiscUse,
-            Cost: from.Cost,
-            SubCategoryId: from.SubCategoryId,
-            ItemsCount: from.ItemsCount,
-            Weight: from.Weight,
-            ToHit: from.ToHit,
-            ToDamage: from.ToDamage,
-            Ac: from.Ac,
-            ToAc: from.ToAc,
-            Damage: from.Damage,
-            DepthFirstFound: from.DepthFirstFound,
-            Identification: 0);
     }
 
     // Mirrors item_magic_dump.cpp's dump_item() -- deliberately omits
