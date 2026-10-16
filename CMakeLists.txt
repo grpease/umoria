@@ -313,3 +313,18 @@ list(APPEND data_table_dump_source_files tools/data_table_dump/data_table_dump.c
 add_executable(data_table_dump ${data_table_dump_source_files})
 target_link_libraries(data_table_dump ${CURSES_LIBRARIES})
 set_target_properties(data_table_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
+# Item-magic matrix dump harness: verifies the .NET migration's port of
+# magicTreasureMagicalAbility() and its helpers (M3, Umoria.Core.Dungeon.
+# TreasureMagic) against the real compiled C++ game. See
+# tools/item_magic_dump/item_magic_dump.cpp for details.
+#
+set(item_magic_dump_source_files ${source_files})
+list(REMOVE_ITEM item_magic_dump_source_files ${source_dir}/main.cpp)
+list(APPEND item_magic_dump_source_files tools/item_magic_dump/item_magic_dump.cpp)
+
+add_executable(item_magic_dump ${item_magic_dump_source_files})
+target_link_libraries(item_magic_dump ${CURSES_LIBRARIES})
+set_target_properties(item_magic_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

@@ -24,7 +24,7 @@ generation (initially feared otherwise).
 - [x] M0 — Real data-table extractor (libclang-based)
 - [x] M1 — Core structs: Creature_t, Monster_t, Inventory_t, Player_t
 - [x] M2 — Monster placement
-- [ ] M3 — Item magic/enchantment engine
+- [x] M3 — Item magic/enchantment engine
 - [ ] M4 — Object/treasure placement *(partial: TreasureStub.cs exists only as a minimal door/stair/gold-slot placeholder, not real object/treasure placement)*
 - [ ] M5 — Dungeon lighting & line-of-sight
 - [ ] M6 — Character creation
