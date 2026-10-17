@@ -1,5 +1,6 @@
 // Headless replacement for src/ui_io.cpp, linked ONLY into the
-// char_create_dump harness (see char_create_dump.cpp and CMakeLists.txt).
+// char_create_dump and status_effects_dump harnesses (see their .cpp files
+// and CMakeLists.txt).
 //
 // Why this exists: characterCreate() (src/character.cpp) interleaves its
 // RNG-consuming logic with curses prompts (race/gender/class/re-roll keys,
@@ -12,9 +13,12 @@
 // keypresses. That way the harness drives the REAL, unmodified
 // characterCreate() end to end.
 //
-// None of the replaced functions consume RNG or mutate game state other
-// than the message history and terminal bookkeeping, which nothing in the
-// character-creation dump reads.
+// None of the replaced functions consume RNG. The game state they mutate is
+// the message history and terminal bookkeeping (which no harness reads),
+// plus game.command_count -- printMessage() zeroes it for every non-null
+// message (cancelling a repeated command), which the stub reproduces since
+// the status-effects harness (M7) dumps it. getKeyInput() also zeroes it;
+// only character creation reads keys, and it never sets a count.
 
 #include "../../src/headers.h"
 
@@ -82,8 +86,15 @@ void messageLinePrintMessage(std::string /*message*/) {}
 
 void messageLineClear() {}
 
-void printMessage(const char * /*msg*/) {}
+void printMessage(const char *msg) {
+    // Mirrors the real printMessage()'s one game-state effect.
+    if (msg != nullptr) {
+        game.command_count = 0;
+    }
+}
 
+// The real one saves/restores game.command_count around printMessage(), so
+// its net effect on game state is nil.
 void printMessageNoCommandInterrupt(const std::string & /*msg*/) {}
 
 char getKeyInput() {

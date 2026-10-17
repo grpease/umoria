@@ -1,18 +1,146 @@
+using Umoria.Core.Config;
 using Umoria.Core.Model.Generated;
 
 namespace Umoria.Core.Dungeon;
 
 // Port of the state-mutating lighting helpers from src/dungeon.cpp.
 //
-// dungeonMoveCharacterLight() (and its sub1MoveLight()/sub3MoveLight()
-// helpers) are NOT ported here: they read Player.flags.blind,
-// Player.carrying_light, Player.running_tracker, Player.temporary_light_only
-// (no Player singleton exists until M6) and config::options::run_print_self
-// (UI), so they're a real M6/M8 dependency, not this milestone's. They
-// naturally belong with M8's player-movement port, which already lists M5
-// as a prerequisite.
+// dungeonMoveCharacterLight() (with its sub1MoveLight()/sub3MoveLight()
+// helpers) and src/ui.cpp's dungeonResetView() were deferred from M5 for
+// want of a Player; they're ported here as of M7, because the player
+// status-effect updates (blindness, light running out, playerDisturb())
+// reach them. Their panelPutTile()/drawDungeonPanel() calls are terminal
+// rendering and are omitted, same as LightRoom's.
 public static class DungeonLighting
 {
+    // src/ui.cpp:111 dungeonResetView() -- the light-source half. The
+    // original first redraws the panel if the player is outside it
+    // (coordOutsidePanel()/drawDungeonPanel(), UI-only) before this.
+    public static void ResetView(Player py, Model.Generated.Dungeon dg, TreasureList treasure, GameOptions options)
+    {
+        // Move the light source
+        MoveCharacterLight(py, dg, treasure, options, py.Pos, py.Pos);
+
+        // (re-read after the move: the original holds a reference to the tile)
+        var tile = dg.Floor[py.Pos.Y, py.Pos.X];
+
+        // A room of light should be lit.
+        if (tile.FeatureId == TileConstants.TileLightFloor)
+        {
+            if (py.Flags.Blind < 1 && !tile.PermanentLight)
+            {
+                LightRoom(dg, treasure, py.Pos);
+            }
+            return;
+        }
+
+        // In doorway of light-room?
+        if (tile.PermaLitRoom && py.Flags.Blind < 1)
+        {
+            for (var i = py.Pos.Y - 1; i <= py.Pos.Y + 1; i++)
+            {
+                for (var j = py.Pos.X - 1; j <= py.Pos.X + 1; j++)
+                {
+                    if (dg.Floor[i, j].FeatureId == TileConstants.TileLightFloor && !dg.Floor[i, j].PermanentLight)
+                    {
+                        LightRoom(dg, treasure, new Coord(i, j));
+                    }
+                }
+            }
+        }
+    }
+
+    // src/dungeon.cpp:491 dungeonMoveCharacterLight() -- package for moving
+    // the character's light about the screen. Four cases : Normal, Finding,
+    // Blind, and No light -RAK-
+    public static void MoveCharacterLight(Player py, Model.Generated.Dungeon dg, TreasureList treasure, GameOptions options, Coord from, Coord to)
+    {
+        if (py.Flags.Blind > 0 || !py.CarryingLight)
+        {
+            Sub3MoveLight(py, dg, from);
+        }
+        else
+        {
+            Sub1MoveLight(py, dg, treasure, options, from, to);
+        }
+    }
+
+    // src/dungeon.cpp:403 sub1MoveLight() -- normal movement. When
+    // FIND_FLAG, light only permanent features.
+    private static void Sub1MoveLight(Player py, Model.Generated.Dungeon dg, TreasureList treasure, GameOptions options, Coord from, Coord to)
+    {
+        if (py.TemporaryLightOnly)
+        {
+            // Turn off lamp light
+            for (var y = from.Y - 1; y <= from.Y + 1; y++)
+            {
+                for (var x = from.X - 1; x <= from.X + 1; x++)
+                {
+                    dg.Floor[y, x].TemporaryLight = false;
+                }
+            }
+            if (py.RunningTracker != 0 && !options.RunPrintSelf)
+            {
+                py.TemporaryLightOnly = false;
+            }
+        }
+        else if (py.RunningTracker == 0 || options.RunPrintSelf)
+        {
+            py.TemporaryLightOnly = true;
+        }
+
+        for (var y = to.Y - 1; y <= to.Y + 1; y++)
+        {
+            for (var x = to.X - 1; x <= to.X + 1; x++)
+            {
+                ref var tile = ref dg.Floor[y, x];
+
+                // only light up if normal movement
+                if (py.TemporaryLightOnly)
+                {
+                    tile.TemporaryLight = true;
+                }
+
+                if (tile.FeatureId >= TileConstants.MinCaveWall)
+                {
+                    tile.PermanentLight = true;
+                }
+                else if (!tile.FieldMark && tile.TreasureId != 0)
+                {
+                    int tval = treasure[tile.TreasureId].CategoryId;
+
+                    if (tval >= TreasureCategory.TvMinVisible && tval <= TreasureCategory.TvMaxVisible)
+                    {
+                        tile.FieldMark = true;
+                    }
+                }
+            }
+        }
+
+        // (the original then redraws every tile from `from` to `to` --
+        // rendering only)
+    }
+
+    // src/dungeon.cpp:468 sub3MoveLight() -- when blinded, move only the
+    // player symbol. With no light, movement becomes involved.
+    private static void Sub3MoveLight(Player py, Model.Generated.Dungeon dg, Coord from)
+    {
+        if (py.TemporaryLightOnly)
+        {
+            for (var y = from.Y - 1; y <= from.Y + 1; y++)
+            {
+                for (var x = from.X - 1; x <= from.X + 1; x++)
+                {
+                    dg.Floor[y, x].TemporaryLight = false;
+                }
+            }
+
+            py.TemporaryLightOnly = false;
+        }
+
+        // (the rest only redraws `from` and the '@' at `to` -- rendering)
+    }
+
     // src/dungeon.cpp:212 caveTileVisible()
     public static bool CaveTileVisible(Model.Generated.Dungeon dg, Coord coord)
     {

@@ -1,7 +1,7 @@
 // Hand-translated constants for the player subsystem (M6), from
 // src/player.h, src/inventory.h and config::player/config::spells in
-// src/config.cpp. Only the subset character creation needs; later player
-// milestones (M7/M8) will extend this.
+// src/config.cpp. Only the subset ported code needs: character creation
+// (M6), plus the food/regeneration constants for status effects (M7).
 namespace Umoria.Core.Config;
 
 public static class PlayerConfig
@@ -13,6 +13,19 @@ public static class PlayerConfig
 
     // src/inventory.h
     public const int PlayerInventorySize = 34;
+
+    // config::player (src/config.cpp)
+    public const ushort PlayerFoodFull = 10000; // Getting full
+    public const ushort PlayerFoodMax = 15000; // Maximum food value, beyond is wasted
+    public const ushort PlayerFoodFaint = 300; // Character begins fainting
+    public const ushort PlayerFoodWeak = 1000; // Warn player that they're getting weak
+    public const ushort PlayerFoodAlert = 2000; // Alert player that they're getting low on food
+    public const byte PlayerRegenFaint = 33; // Regen factor*2^16 when fainting
+    public const byte PlayerRegenWeak = 98; // Regen factor*2^16 when weak
+    public const byte PlayerRegenNormal = 197; // Regen factor*2^16 when full
+    public const ushort PlayerRegenHpBase = 1442; // Min amount hp regen*2^16
+    public const ushort PlayerRegenMnBase = 524; // Min amount mana regen*2^16
+    public const byte PlayerWeightCap = 130; // "#"*(1/10 pounds) per strength point
 
     // src/player.h enum PlayerAttr -- indexes PlayerStats' 6-entry arrays.
     public static class Attr

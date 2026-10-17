@@ -357,9 +357,30 @@ set(char_create_dump_source_files ${source_files})
 list(REMOVE_ITEM char_create_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
 list(APPEND char_create_dump_source_files
         tools/char_create_dump/char_create_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
         tools/char_create_dump/ui_io_stub.cpp
 )
 
 add_executable(char_create_dump ${char_create_dump_source_files})
 target_link_libraries(char_create_dump ${CURSES_LIBRARIES})
 set_target_properties(char_create_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+#
+# Player status-effects dump harness (M7): verifies the .NET port of the
+# per-turn player status-effect updates against the real compiled C++ game.
+# Same headless ui_io stub as char_create_dump; additionally drops
+# src/game_run.cpp from the list because the harness #includes it, to reach
+# its static status-effect functions without modifying them. See
+# tools/status_effects_dump/status_effects_dump.cpp for details.
+#
+set(status_effects_dump_source_files ${source_files})
+list(REMOVE_ITEM status_effects_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp ${source_dir}/game_run.cpp)
+list(APPEND status_effects_dump_source_files
+        tools/status_effects_dump/status_effects_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(status_effects_dump ${status_effects_dump_source_files})
+target_link_libraries(status_effects_dump ${CURSES_LIBRARIES})
+set_target_properties(status_effects_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

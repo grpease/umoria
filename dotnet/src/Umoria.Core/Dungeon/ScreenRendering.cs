@@ -18,11 +18,19 @@ public static class ScreenRendering
     {
     }
 
-    // Stand-in for src/ui_io.cpp printMessage(), added in M6 for the
-    // spell-allowance messages ("You can learn some new spells now.").
-    // Same reasoning as LiteSpot: the message line is pure display plus a
-    // message-history buffer nothing outside the UI reads, so it's a
-    // documented no-op at each real call site until the UI milestone (M14).
+    // Stand-in for the display half of src/ui_io.cpp printMessage(), added
+    // in M6 for the spell-allowance messages ("You can learn some new
+    // spells now."). The message line, -more- prompt and message history
+    // are display-only, so this is a documented no-op until the UI
+    // milestone (M14).
+    //
+    // NOT pure display, though (found in M7): the real printMessage() also
+    // zeroes game.command_count for every non-null message, cancelling a
+    // repeated command. Code with a PlayerWorld should call
+    // Character.PlayerCore.PrintMessage, which does both. M6's
+    // PlayerSpells calls this directly -- harmless during character
+    // creation (no command count exists yet), but its in-game callers
+    // (M10 casting, level gain) need to route through PlayerCore instead.
     public static void PrintMessage(string message)
     {
     }

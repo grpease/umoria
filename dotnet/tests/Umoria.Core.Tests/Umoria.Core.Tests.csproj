@@ -28,6 +28,7 @@
     <None Include="..\ItemMagicTraces\**" LinkBase="ItemMagicTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\LosTraces\**" LinkBase="LosTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\CharCreateTraces\**" LinkBase="CharCreateTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\StatusEffectsTraces\**" LinkBase="StatusEffectsTraces" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

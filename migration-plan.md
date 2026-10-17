@@ -28,7 +28,7 @@ generation (initially feared otherwise).
 - [x] M4 — Object/treasure placement
 - [x] M5 — Dungeon lighting & line-of-sight
 - [x] M6 — Character creation
-- [ ] M7 — Player status-effects subsystem
+- [x] M7 — Player status-effects subsystem
 - [ ] M8 — Player movement/action subsystem
 - [ ] M9 — Monster AI & melee combat, together with damage-spell primitives
 - [ ] M10 — Remaining spell effects + casting layer
@@ -194,18 +194,65 @@ classes, the caster spell-allowance path, and 4-line histories. Same mutate-a-ba
   - Seeding: each traced case calls setRandomSeed() directly, like golden_trace_harness, rather than
     startMoria()'s seedsInitialize() + storeInitializeOwners() sequence -- belongs to M13/M15.
 
-### M7 — Player status-effects subsystem                                                                            
-																											  
-- Scope: carved out of game_run.cpp (lines ~252-950): poison, confusion, fear, blindness, heroism,              
-regeneration, hunger, speed/slowness, paralysis, resistances, word-of-recall, status flags.                   
-- Size: M (~700 lines, uniform countdown/threshold checks, several consume RNG for damage-over-time).           
-- Depends on: M1, M6 (needs a real Player_t to tick).                                                           
-- Verify: confirmed isolated from dungeon generation (playerUpdateWordOfRecall only sets flags, doesn't call    
-level-gen directly) — a test-only hook applies a scripted sequence of ticks to a fixed starting Player_t for  
-a fixed seed, dumps resulting state each tick.                                                                
-- Defer: the actual level-regeneration playDungeon performs when it sees dg.generate_new_level == true — that's 
-M16's job, not this milestone's.                                                                              
-																											  
+### M7 — Player status-effects subsystem
+
+- Scope: the per-turn player updates carved out of game_run.cpp: light fuel, heroism/super heroism,
+food/hunger/fainting/starvation, hp/mana regeneration, blindness, confusion, fear, poison (con-scaled damage),
+fast/slow, resting, hallucination, paralysis, protection from evil, invulnerability, blessing, heat/cold
+resistance, detect invisible, timed infravision, word of recall, the status-flag housekeeping, encumbrance
+(playerStrength) and the detect-enchantment roll; plus playDungeon()'s level-entry preamble. Done --
+Umoria.Core.Character.PlayerStatusEffects (EnterLevel / UpdateTimedEffects / UpdateStatusUpkeep, split where
+playDungeon() puts random teleportation between them).
+- Real call graph (read, not assumed):
+  - The status code leans on small, widely shared player.cpp helpers -- playerDisturb(), playerSearchOn/Off(),
+    playerRestOff(), playerChangeSpeed() (also shifts every monster's speed), playerTakesHit() (sets
+    game.character_is_dead / died-from and dg.generate_new_level), playerCarryingLoadLimit(), playerStrength(),
+    and player_run.cpp's playerEndRunning(). Ported as PlayerCore.
+  - playerDisturb() / blindness / light changes reach dungeonResetView() (ui.cpp) and
+    dungeonMoveCharacterLight() + sub1/sub3MoveLight() (dungeon.cpp), which M5 deferred for want of a Player.
+    They mutate tile light flags and py.temporary_light_only, so they're ported now (DungeonLighting.ResetView /
+    MoveCharacterLight; their panel redraws are omitted).
+  - updateMonsters(false) ("light, but don't move creatures") is called after every visibility change. Its
+    per-monster work is monsterUpdateVisibility() -- M9. PlayerCore.UpdateMonstersWithoutMoving() is exact with
+    no live monsters and throws NotSupportedException otherwise (tested), rather than silently skipping it.
+  - Two "display" routines turned out to mutate game state, found by the trace rather than by assumption:
+    ui.cpp's printCharacterStudyInstruction() clears PY_STUDY, and printCharacterMovementState() maintains
+    PY_REPEAT. ui_io.cpp's printMessage() zeroes game.command_count for every non-null message (cancels a
+    repeated command). All three state halves are ported (PlayerCore.UpdateMovementStateFlags /
+    PlayerCore.PrintMessage); the display halves stay no-ops. M6's PlayerSpells still calls the display-only
+    ScreenRendering.PrintMessage -- fine at creation time, but its in-game callers (M10) must use PlayerCore's.
+  - Word of recall confirmed isolated from level generation: it only sets dg.current_level,
+    dg.generate_new_level and one turn of paralysis.
+- Model changes: Dungeon gained GameTurn and GenerateNewLevel (previously omitted as main-loop state); new
+Model.GameState (Game_t subset: character_is_dead, died_from, total_winner, teleport_player, command_count,
+config::options) and Character.PlayerWorld (bundles py/dg/game/monsters/treasure for player-side code).
+- Verify: new tools/status_effects_dump harness. The status functions are all `static` in game_run.cpp, so
+instead of un-static-ing two dozen game functions, that target drops game_run.cpp from its source list and
+#includes it -- zero changes to src/ this milestone. Reuses M6's headless ui_io stub (now also reproducing
+printMessage()'s command_count reset) and M6's creation code, factored out into
+tools/char_create_dump/char_create_common.cpp (M6's baseline regenerates byte-identical). 18 scenarios, each a
+real created character on a hand-built test level (lit room, dark doorway, open dark area; no monsters or floor
+objects) with a setup and optional per-tick pokes, running playDungeon()'s preamble then the status portion of its
+loop body: timed_effects (every timer at once, plus fear vs heroism, rest, strength loss/gain), starvation (hunger ->
+weak -> faint (RNG) -> death), rest_regen (rest-until-done, search mode, poison blocking hp regen), light_source
+(torch fading (RNG), going out, relighting, running, blind with no light), recall_down/recall_up,
+detect_enchantment (level 40, 1200 turns, an unidentified +3 weapon gets ID_MAGIK), message_interrupt
+(command_count/PY_REPEAT interplay), and poison at all 9 constitution adjustments plus invulnerable. One state line
+per tick (incl. RNG state and lit/field-marked tile counts) and the full M6 player dump at the end: 6.5k lines.
+Two mismatches surfaced and were fixed during bring-up (PY_STUDY clearing, then the PY_REPEAT/command_count
+halves); final run is byte-for-byte. Same mutate-the-test-copy sanity check as before.
+- Defer:
+  - playDungeon() itself -- turn loop, storeMaintenance() (M13), the new-monster roll and updateMonsters(true) /
+    compactMonsters() (M9), the keypress interrupt (input), random teleportation (playerTeleport, M8), command
+    input -- and acting on dg.generate_new_level: M16 (as planned).
+  - Hallucination vs rendering RNG (UI coupling, for M14): dungeon.cpp's caveGetTileSymbol() calls
+    randomNumber() for every tile it renders while the player hallucinates and isn't blind, so every redraw
+    (drawDungeonPanel(), panelPutTile() in the light/run code) consumes game RNG in proportion to screen
+    geometry. The M7 scenarios only hallucinate while blind (which short-circuits before the draw) so the port
+    stays exact. Before M14/M16, decide: reproduce those draws exactly (port caveGetTileSymbol + panel geometry +
+    every redraw site) or give hallucination glyphs their own cosmetic RNG and accept a C++-divergent RNG stream
+    during hallucination.
+
 ### M8 — Player movement/action subsystem                                                                           
 																											  
 - Scope: player_move.cpp (548), player_run.cpp (411), player_tunnel.cpp (176), player_bash.cpp (230),           
@@ -285,6 +332,8 @@ translation (curses doesn't map 1:1, same as the POC's render loop).
 - Depends on: whichever subsystem each screen surfaces.                                                         
 - Verify: manual/visual per screen, same as the POC's walkable-loop check; any pure display-string formatting   
 logic underneath can still be unit-tested.                                                                    
+- Open decision from M7: hallucination's random glyphs (caveGetTileSymbol) draw from the game RNG on every
+rendered tile -- see M7's Defer list. Settle it before (or with) the dungeon view.
 																											  
 ### M15 — Main loop integration                                                                                     
 																											  
