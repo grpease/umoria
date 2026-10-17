@@ -17,6 +17,9 @@ public sealed class GameState
     // Handle teleport traps
     public bool TeleportPlayer { get; set; }
 
+    // Player has a free turn, so do not move creatures (M8)
+    public bool PlayerFreeTurn { get; set; }
+
     // How many times to repeat a specific command -CJS-
     public uint CommandCount { get; set; }
 

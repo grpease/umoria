@@ -1,7 +1,8 @@
 // Hand-translated constants for the player subsystem (M6), from
 // src/player.h, src/inventory.h and config::player/config::spells in
 // src/config.cpp. Only the subset ported code needs: character creation
-// (M6), plus the food/regeneration constants for status effects (M7).
+// (M6), plus the food/regeneration constants for status effects (M7) and
+// the combat/experience constants player actions reach (M8).
 namespace Umoria.Core.Config;
 
 public static class PlayerConfig
@@ -10,6 +11,26 @@ public static class PlayerConfig
     public const int PlayerMaxLevel = 40;
     public const int PlayerMaxClasses = 6;
     public const int PlayerMaxRaces = 8;
+
+    // src/player.h PlayerClassLevelAdj -- column indexes into
+    // DataPlayerData.ClassLevelAdj (added M8)
+    public static class ClassLevelAdj
+    {
+        public const int Bth = 0;
+        public const int Bthb = 1;
+        public const int Device = 2;
+        public const int Disarm = 3;
+        public const int Save = 4;
+    }
+
+    // this depends on the fact that py_class_level_adj::CLASS_SAVE values are all the same,
+    // if not, then should add a separate column for this
+    public const int ClassMiscHit = 4;
+
+    public const int BthPerPlusToHitAdjust = 3; // Adjust BTH per plus-to-hit
+
+    // config::player::PLAYER_MAX_EXP -- maximum amount of experience -CJS-
+    public const int PlayerMaxExp = 9999999;
 
     // src/inventory.h
     public const int PlayerInventorySize = 34;

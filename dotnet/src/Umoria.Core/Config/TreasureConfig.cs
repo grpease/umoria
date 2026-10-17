@@ -58,11 +58,12 @@ public static class TreasureConfig
         public const uint TrCursed = 0x80000000;
     }
 
-    // from config::treasure::chests in src/config.cpp. Omits CH_TRAPPED
-    // (another aggregate mask, the OR of the other CH_* trap flags below).
+    // from config::treasure::chests in src/config.cpp. CH_TRAPPED (the
+    // aggregate mask of the CH_* trap flags below) was added in M8.
     public static class Chests
     {
         public const uint ChLocked = 0x00000001;
+        public const uint ChTrapped = 0x000001F0;
         public const uint ChLoseStr = 0x00000010;
         public const uint ChPoison = 0x00000020;
         public const uint ChParalysed = 0x00000040;

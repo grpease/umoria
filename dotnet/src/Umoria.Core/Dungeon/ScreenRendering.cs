@@ -10,8 +10,9 @@ namespace Umoria.Core.Dungeon;
 // dropped, so wiring up the real renderer later is a one-line change per
 // caller instead of a hunt through the codebase.
 //
-// caveGetTileSymbol() itself is not ported for the same reason, plus it
-// reads Player.flags/running_tracker (M6) and config::options (UI) besides.
+// caveGetTileSymbol() is ported as TileSymbol (M8), because the running
+// algorithm reads it as game logic; the redraw sites that only render with
+// it stay omitted (but see TileSymbol on hallucination RNG).
 public static class ScreenRendering
 {
     public static void LiteSpot(Model.Generated.Dungeon dg, Model.Generated.Coord coord)

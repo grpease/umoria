@@ -11,3 +11,7 @@ void uiStubSetScript(const std::string &keys, const std::string &name);
 // after each case so a script/flow mismatch fails loudly instead of quietly
 // verifying the wrong path.
 bool uiStubScriptConsumed();
+
+// What getInputConfirmation() answers (default false). The player-actions
+// harness (M8) flips it to cover "pick it up anyway?" prompts.
+void uiStubSetConfirmAnswer(bool answer);

@@ -384,3 +384,21 @@ list(APPEND status_effects_dump_source_files
 add_executable(status_effects_dump ${status_effects_dump_source_files})
 target_link_libraries(status_effects_dump ${CURSES_LIBRARIES})
 set_target_properties(status_effects_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+#
+# Player movement/actions dump harness (M8): verifies the .NET port of the
+# player's step, running, traps, tunnelling, doors, disarming and stat
+# changes against the real compiled C++ game. Same headless ui_io stub as
+# char_create_dump (its key script answers the direction prompts). See
+# tools/player_actions_dump/player_actions_dump.cpp for details.
+#
+set(player_actions_dump_source_files ${source_files})
+list(REMOVE_ITEM player_actions_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
+list(APPEND player_actions_dump_source_files
+        tools/player_actions_dump/player_actions_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(player_actions_dump ${player_actions_dump_source_files})
+target_link_libraries(player_actions_dump ${CURSES_LIBRARIES})
+set_target_properties(player_actions_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

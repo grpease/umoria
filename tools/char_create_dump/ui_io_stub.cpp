@@ -1,6 +1,6 @@
 // Headless replacement for src/ui_io.cpp, linked ONLY into the
-// char_create_dump and status_effects_dump harnesses (see their .cpp files
-// and CMakeLists.txt).
+// char_create_dump, status_effects_dump and player_actions_dump harnesses
+// (see their .cpp files and CMakeLists.txt).
 //
 // Why this exists: characterCreate() (src/character.cpp) interleaves its
 // RNG-consuming logic with curses prompts (race/gender/class/re-roll keys,
@@ -132,8 +132,14 @@ bool getStringInput(char *in_str, Coord_t /*coord*/, int slen) {
     return true;
 }
 
+static bool confirm_answer = false;
+
+void uiStubSetConfirmAnswer(bool answer) {
+    confirm_answer = answer;
+}
+
 bool getInputConfirmation(const std::string & /*prompt*/) {
-    return false;
+    return confirm_answer;
 }
 
 int getInputConfirmationWithAbort(int /*column*/, const std::string & /*prompt*/) {

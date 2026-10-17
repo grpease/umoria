@@ -13,11 +13,17 @@ namespace Umoria.Core.Dungeon;
 // rendering and are omitted, same as LightRoom's.
 public static class DungeonLighting
 {
-    // src/ui.cpp:111 dungeonResetView() -- the light-source half. The
-    // original first redraws the panel if the player is outside it
-    // (coordOutsidePanel()/drawDungeonPanel(), UI-only) before this.
+    // src/ui.cpp:111 dungeonResetView() -- we need to reset the view of
+    // things. -CJS- (M8 added the panel check: the panel shift is state, see
+    // ScreenPanel; only the drawDungeonPanel() redraw is omitted.)
     public static void ResetView(Player py, Model.Generated.Dungeon dg, TreasureList treasure, GameOptions options)
     {
+        // Check for new panel
+        if (ScreenPanel.CoordOutsidePanel(py, dg, treasure, options, py.Pos, false))
+        {
+            // (drawDungeonPanel() -- rendering)
+        }
+
         // Move the light source
         MoveCharacterLight(py, dg, treasure, options, py.Pos, py.Pos);
 
@@ -48,6 +54,21 @@ public static class DungeonLighting
                 }
             }
         }
+    }
+
+    // src/player_run.cpp:238 playerEndRunning() -- switch off the run flag
+    // and get the light correct. -CJS- Lives here (not only in PlayerCore)
+    // because ScreenPanel.CoordOutsidePanel(), below PlayerWorld, calls it.
+    public static void EndRunning(Player py, Model.Generated.Dungeon dg, TreasureList treasure, GameOptions options)
+    {
+        if (py.RunningTracker == 0)
+        {
+            return;
+        }
+
+        py.RunningTracker = 0;
+
+        MoveCharacterLight(py, dg, treasure, options, py.Pos, py.Pos);
     }
 
     // src/dungeon.cpp:491 dungeonMoveCharacterLight() -- package for moving

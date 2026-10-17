@@ -1,14 +1,22 @@
 using Umoria.Core.Config;
 using Umoria.Core.Data.Generated;
 using Umoria.Core.Model.Generated;
+using Umoria.Core.Rng;
 
 namespace Umoria.Core.Character;
 
 // The subset of src/player_stats.cpp character creation (M6) reaches: base
 // exp levels, hit-point recalculation, the stat->bonus adjustment tables,
 // and playerSetAndUseStat() (which fans out into bonus recalculation, spell
-// allowance and hit points). The stat gain/loss/restore/boost family
-// (playerStatRandomIncrease etc.) and attack-blows tables stay with M8.
+// allowance and hit points). M8 added the rest of the file: the stat
+// gain/loss/restore/boost family, attack blows and the charisma price
+// adjustment. displayCharacterStats() (after a stat change) is display
+// only.
+//
+// SetAndUseStat() on INT/WIS reaches PlayerSpells' allowance/mana updates,
+// whose messages are still the display-only kind (see
+// ScreenRendering.PrintMessage) -- not an issue for M8's callers (traps
+// only drain STR and CON), but M10/M11's potions and spells will need it.
 public static class PlayerStatLogic
 {
     // src/player_stats.cpp:11 playerInitializeBaseExperienceLevels()
@@ -165,6 +173,202 @@ public static class PlayerStatLogic
         {
             CalculateHitPoints(py);
         }
+    }
+
+    // src/data_tables.cpp:79 blows_table -- used to calculate the number
+    // of blows the player gets in combat (hand-copied, M8)
+    private static readonly byte[][] BlowsTable =
+    {
+        // STR/W:   9  18  67  107 117 118  : DEX
+        new byte[] { 1, 1, 1, 1, 1, 1 }, // <2
+        new byte[] { 1, 1, 1, 1, 2, 2 }, // <3
+        new byte[] { 1, 1, 1, 2, 2, 3 }, // <4
+        new byte[] { 1, 1, 2, 2, 3, 3 }, // <5
+        new byte[] { 1, 2, 2, 3, 3, 4 }, // <7
+        new byte[] { 1, 2, 2, 3, 4, 4 }, // <9
+        new byte[] { 2, 2, 3, 3, 4, 4 }, // >9
+    };
+
+    // src/player_stats.cpp:58 playerAttackBlowsDexterity()
+    private static int AttackBlowsDexterity(int dexterity)
+    {
+        if (dexterity < 10) return 0;
+        if (dexterity < 19) return 1;
+        if (dexterity < 68) return 2;
+        if (dexterity < 108) return 3;
+        if (dexterity < 118) return 4;
+        return 5;
+    }
+
+    // src/player_stats.cpp:78 playerAttackBlowsStrength()
+    private static int AttackBlowsStrength(int strength, int weight)
+    {
+        var adjWeight = strength * 10 / weight;
+
+        if (adjWeight < 2) return 0;
+        if (adjWeight < 3) return 1;
+        if (adjWeight < 4) return 2;
+        if (adjWeight < 5) return 3;
+        if (adjWeight < 7) return 4;
+        if (adjWeight < 9) return 5;
+        return 6;
+    }
+
+    // src/player_stats.cpp:101 playerAttackBlows() -- weapon weight VS
+    // strength and dexterity -RAK-
+    public static int AttackBlows(Player py, int weight, out int weightToHit)
+    {
+        weightToHit = 0;
+
+        int playerStrength = py.Stats.Used[PlayerConfig.Attr.Str];
+
+        if (playerStrength * 15 < weight)
+        {
+            weightToHit = playerStrength * 15 - weight;
+            return 1;
+        }
+
+        var dexterity = AttackBlowsDexterity(py.Stats.Used[PlayerConfig.Attr.Dex]);
+        var strength = AttackBlowsStrength(playerStrength, weight);
+
+        return BlowsTable[strength][dexterity];
+    }
+
+    // src/player_stats.cpp:142 playerStatAdjustmentCharisma() -- percent
+    // decrease or increase in price of goods -RAK-
+    public static int StatAdjustmentCharisma(Player py)
+    {
+        int charisma = py.Stats.Used[PlayerConfig.Attr.Chr];
+
+        if (charisma > 117) return 90;
+        if (charisma > 107) return 92;
+        if (charisma > 87) return 94;
+        if (charisma > 67) return 96;
+        if (charisma > 18) return 98;
+
+        return charisma switch
+        {
+            18 => 100,
+            17 => 101,
+            16 => 102,
+            15 => 103,
+            14 => 104,
+            13 => 106,
+            12 => 108,
+            11 => 110,
+            10 => 112,
+            9 => 114,
+            8 => 116,
+            7 => 118,
+            6 => 120,
+            5 => 122,
+            4 => 125,
+            3 => 130,
+            _ => 100,
+        };
+    }
+
+    // src/player_stats.cpp:283 playerStatRandomIncrease() -- increases a
+    // stat by one randomized level -RAK-
+    public static bool StatRandomIncrease(Player py, int stat)
+    {
+        int newStat = py.Stats.Current[stat];
+
+        if (newStat >= 118)
+        {
+            return false;
+        }
+
+        if (newStat >= 18 && newStat < 116)
+        {
+            // stat increases by 1/6 to 1/3 of difference from max
+            var gain = ((118 - newStat) / 3 + 1) >> 1;
+
+            newStat += RandomNumber.Next(gain) + gain;
+        }
+        else
+        {
+            newStat++;
+        }
+
+        py.Stats.Current[stat] = (byte)newStat;
+
+        if (newStat > py.Stats.Max[stat])
+        {
+            py.Stats.Max[stat] = (byte)newStat;
+        }
+
+        SetAndUseStat(py, stat);
+        // (displayCharacterStats() -- display)
+
+        return true;
+    }
+
+    // src/player_stats.cpp:312 playerStatRandomDecrease() -- decreases a
+    // stat by one randomized level -RAK-
+    public static bool StatRandomDecrease(Player py, int stat)
+    {
+        int newStat = py.Stats.Current[stat];
+
+        if (newStat <= 3)
+        {
+            return false;
+        }
+
+        if (newStat >= 19 && newStat < 117)
+        {
+            var loss = (((118 - newStat) >> 1) + 1) >> 1;
+            newStat += -RandomNumber.Next(loss) - loss;
+
+            if (newStat < 18)
+            {
+                newStat = 18;
+            }
+        }
+        else
+        {
+            newStat--;
+        }
+
+        py.Stats.Current[stat] = (byte)newStat;
+
+        SetAndUseStat(py, stat);
+        // (displayCharacterStats() -- display)
+
+        return true;
+    }
+
+    // src/player_stats.cpp:339 playerStatRestore() -- restore a stat.
+    // Return true only if this actually makes a difference.
+    public static bool StatRestore(Player py, int stat)
+    {
+        var newStat = py.Stats.Max[stat] - py.Stats.Current[stat];
+
+        if (newStat == 0)
+        {
+            return false;
+        }
+
+        py.Stats.Current[stat] = (byte)(py.Stats.Current[stat] + newStat);
+
+        SetAndUseStat(py, stat);
+        // (displayCharacterStats() -- display)
+
+        return true;
+    }
+
+    // src/player_stats.cpp:356 playerStatBoost() -- boost a stat
+    // artificially (by wearing something).
+    public static void StatBoost(Player py, int stat, int amount)
+    {
+        py.Stats.Modified[stat] = (short)(py.Stats.Modified[stat] + amount);
+
+        SetAndUseStat(py, stat);
+
+        // can not call displayCharacterStats() here:
+        //   might be in a store,
+        //   might be in inventoryExecuteCommand()
+        py.Flags.Status |= PlayerConfig.Status.PyStr << stat;
     }
 
     // src/player_stats.cpp:366 playerToHitAdjustment()

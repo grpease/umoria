@@ -6,8 +6,9 @@ namespace Umoria.Core.Items;
 // The subset of src/inventory.cpp character creation (M6) reaches:
 // inventoryCollectAllItemFlags (via playerRecalculateBonuses),
 // inventoryCarryItem (starting provisions), and the small stackable/cursed
-// predicates those use. The rest of inventory.cpp (dropping, destroying,
-// elemental item damage, inventoryCanCarryItem*) stays with M11.
+// predicates those use; M8 added inventoryCanCarryItemCount/CanCarryItem
+// (floor pickup). The rest of inventory.cpp (dropping, destroying,
+// elemental item damage) stays with M11.
 public static class PlayerInventory
 {
     // src/inventory.cpp:10 inventoryCollectAllItemFlags()
@@ -33,6 +34,67 @@ public static class PlayerInventory
     public static bool ItemIsCursed(in Inventory item)
     {
         return (item.Flags & TreasureConfig.Flags.TrCursed) != 0;
+    }
+
+    // src/inventory.cpp:212 inventoryCanCarryItemCount() -- this code must
+    // be identical to the inventoryCarryItem() code below (added M8, for
+    // picking items up off the floor)
+    public static bool CanCarryItemCount(Player py, ObjectIdentification identification, in Inventory item)
+    {
+        if (py.Pack.UniqueItems < PlayerConfig.Equipment.Wield)
+        {
+            return true;
+        }
+
+        if (!ItemStackable(item))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < py.Pack.UniqueItems; i++)
+        {
+            var slot = py.Inventory[i];
+
+            var sameCharacter = slot.CategoryId == item.CategoryId;
+            var sameCategory = slot.SubCategoryId == item.SubCategoryId;
+
+            // make sure the number field doesn't overflow
+            var sameNumber = slot.ItemsCount + item.ItemsCount < 256;
+
+            // they always stack (sub_category_id < 192), or else they have same `misc_use`
+            var sameGroup = item.SubCategoryId < InventoryConfig.ItemGroupMin || slot.MiscUse == item.MiscUse;
+
+            // only stack if both or neither are identified
+            var slotIsColorless = identification.ItemSetColorlessAsIdentified(slot.CategoryId, slot.SubCategoryId, slot.Identification);
+            var itemIsColorless = identification.ItemSetColorlessAsIdentified(item.CategoryId, item.SubCategoryId, item.Identification);
+            var sameIdentification = slotIsColorless == itemIsColorless;
+
+            if (sameCharacter && sameCategory && sameNumber && sameGroup && sameIdentification)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // src/inventory.cpp:247 inventoryCanCarryItem() -- return false if
+    // picking up an object would change the players speed (added M8)
+    public static bool CanCarryItem(Player py, in Inventory item)
+    {
+        var limit = Character.PlayerCore.CarryingLoadLimit(py);
+        var newWeight = item.ItemsCount * item.Weight + py.Pack.Weight;
+
+        if (limit < newWeight)
+        {
+            limit = newWeight / (limit + 1);
+        }
+        else
+        {
+            limit = 0;
+        }
+
+        return py.Pack.Heaviness == limit;
     }
 
     // src/inventory.cpp:263 inventoryCarryItem() -- add an item to the

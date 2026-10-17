@@ -84,6 +84,33 @@ public sealed class ObjectPlacement
         _treasure[id] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjTrapList + subTypeId);
     }
 
+    // src/dungeon.cpp:225 trapChangeVisibility() -- change a trap from
+    // invisible to visible -RAK- Note: Secret doors are handled here
+    // (added M8: searching, and stepping on a trap)
+    public void TrapChangeVisibility(Coord coord)
+    {
+        var treasureId = _dg.Floor[coord.Y, coord.X].TreasureId;
+
+        ref var item = ref _treasure[treasureId];
+
+        if (item.CategoryId == TreasureCategory.TvInvisTrap)
+        {
+            item.CategoryId = TreasureCategory.TvVisTrap;
+            ScreenRendering.LiteSpot(_dg, coord);
+            return;
+        }
+
+        // change secret door to closed door
+        if (item.CategoryId == TreasureCategory.TvSecretDoor)
+        {
+            var closedDoor = DataTreasureData.GameObjects[DungeonGenerationConfig.Objects.ObjClosedDoor];
+            item.Id = DungeonGenerationConfig.Objects.ObjClosedDoor;
+            item.CategoryId = closedDoor.CategoryId;
+            item.Sprite = closedDoor.Sprite;
+            ScreenRendering.LiteSpot(_dg, coord);
+        }
+    }
+
     // src/dungeon.cpp:246 dungeonPlaceRubble()
     public void PlaceRubble(Coord coord)
     {

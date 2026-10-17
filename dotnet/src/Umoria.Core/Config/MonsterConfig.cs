@@ -9,6 +9,7 @@ public static class MonsterConfig
     public const int MonMinPerLevel = 14; // Minimum number of monsters/level
     public const int MonEndgameMonsters = 2; // Total number of "win" creatures
     public const int MonMinIndexId = 2; // Minimum index in m_list (1 = py, 0 = no mon)
+    public const int MonSummonedLevelAdjust = 2; // Adjust level of summoned creatures (M8)
 
     // from config::monsters::defense in src/config.cpp
     public static class Defense

@@ -29,7 +29,7 @@ generation (initially feared otherwise).
 - [x] M5 — Dungeon lighting & line-of-sight
 - [x] M6 — Character creation
 - [x] M7 — Player status-effects subsystem
-- [ ] M8 — Player movement/action subsystem
+- [x] M8 — Player movement/action subsystem
 - [ ] M9 — Monster AI & melee combat, together with damage-spell primitives
 - [ ] M10 — Remaining spell effects + casting layer
 - [ ] M11 — Items/inventory/identification
@@ -243,7 +243,7 @@ Two mismatches surfaced and were fixed during bring-up (PY_STUDY clearing, then 
 halves); final run is byte-for-byte. Same mutate-the-test-copy sanity check as before.
 - Defer:
   - playDungeon() itself -- turn loop, storeMaintenance() (M13), the new-monster roll and updateMonsters(true) /
-    compactMonsters() (M9), the keypress interrupt (input), random teleportation (playerTeleport, M8), command
+    compactMonsters() (M9), the keypress interrupt (input), random teleportation (playerTeleport -- ported in M8), command
     input -- and acting on dg.generate_new_level: M16 (as planned).
   - Hallucination vs rendering RNG (UI coupling, for M14): dungeon.cpp's caveGetTileSymbol() calls
     randomNumber() for every tile it renders while the player hallucinates and isn't blind, so every redraw
@@ -253,18 +253,78 @@ halves); final run is byte-for-byte. Same mutate-the-test-copy sanity check as b
     every redraw site) or give hallucination glyphs their own cosmetic RNG and accept a C++-divergent RNG stream
     during hallucination.
 
-### M8 — Player movement/action subsystem                                                                           
-																											  
-- Scope: player_move.cpp (548), player_run.cpp (411), player_tunnel.cpp (176), player_bash.cpp (230),           
-player_traps.cpp (219), player_stats.cpp (505). Subdivide internally: movement+running first, then            
-tunnel/bash/traps, stats last.                                                                                
-- Size: L combined (~2089 lines), each sub-piece S-M.                                                           
-- Depends on: M5 (los/lighting), M6 (Player_t), M2/M4 (bumping into a monster/object tile).                     
-- Verify: golden-trace a scripted command string against a fixed dungeon + seed, dump player                    
-position/dungeon-mutation state per step.                                                                     
-- Defer: combat resolution on bump-attack (needs M9); check player_traps.cpp's call graph before assuming it's  
-self-contained — some trap effects likely overlap with spells.cpp's stat-loss family.                         
-																											  
+### M8 — Player movement/action subsystem
+
+- Scope (as built): the player's step and everything it sets off, plus the direction commands. player_move.cpp
+(playerMove, carry, every trap effect), player_run.cpp (the running algorithm), player_tunnel.cpp,
+player_bash.cpp, player_traps.cpp (disarming, chest traps) and the rest of player_stats.cpp (stat
+gain/loss/restore/boost, attack blows, charisma). Also, from player.cpp: playerMovePosition, playerTeleport (M7's
+deferral), playerSearch, playerTestBeingHit, opening/closing doors and playerTunnelWall. Done --
+Umoria.Core.Character.PlayerMovement / PlayerRunning / PlayerTraps / PlayerTunnel / PlayerDoors, plus PlayerStatLogic's
+new half.
+- Real call graph (read, not assumed):
+  - The file names undersell player_move.cpp: it holds all 18 trap effects (playerStepsOnTrap is file-static there),
+    while player_traps.cpp is disarming and chest traps. Trap effects reach far: monsterSummon (monster_manager.cpp),
+    dungeonPlaceRandomObjectAt/dungeonSetTrap/dungeonPlaceRubble (M4), playerStatRandomDecrease (this milestone), the
+    item-destroying damage*() family in inventory.cpp, and storeEnter (M13).
+  - Running is driven by caveGetTileSymbol(): playerCanSeeDungeonWall()/playerSeeNothing() ask for the glyph a square
+    would be drawn with. So the "renderer" M5 deferred is game logic here, and is ported as Dungeon.TileSymbol,
+    hallucination RNG draws included.
+  - The screen panel (ui.cpp coordOutsidePanel/coordInsidePanel, Panel_t) is game state, not just display. Every move
+    re-centres it, config::options::find_bound ends a run when it shifts, and coordInsidePanel() gates the "You have
+    found something!" message in playerTunnelWall(), whose printMessage() zeroes command_count. Added to the Dungeon
+    model, set up by DungeonGenerator like generateCave(), and checked in DungeonLighting.ResetView like
+    dungeonResetView().
+  - A fourth "display" routine that mutates state: ui.cpp's displayCharacterExperience() is where level gain happens
+    (playerGainLevel(): level, hit points, exp trimming, spells/mana) and max_exp is kept. Ported as
+    PlayerCore.DisplayCharacterExperience. getDirectionWithMemory()'s state half (py.prev_dir) is
+    PlayerCore.RememberDirection; the commands take the direction as a parameter.
+  - itemDescription() turned out to be game state too, through one door: a trap's description is the death label
+    (game.character_died_from, e.g. "a trap door."). Traps, gold, stairs and store entrances are its trivial
+    catalog-name categories, so that subset is ported (Items.ItemDescription); everything else throws.
+  - playerRandomMovement() rolls randomNumber(4) on every step, confused or not.
+  - Faithfully kept quirks: the covered-pit trap replaces itself with an open pit without freeing its own treasure slot;
+    playerAreaAffect() ignores the "stop" result and keeps examining squares; playerSearchOff() lowers speed even when
+    not searching.
+- Model changes: Dungeon.Panel (Panel_t); GameState.PlayerFreeTurn; GameOptions' running/pickup options (find_bound,
+run_cut_corners, run_examine_corners, run_ignore_doors, highlight_seams, prompt_to_pickup -- config.cpp's comments on
+find_bound and run_print_self are swapped, the C# ones describe the code); PlayerWorld gained ObjectPlacement,
+ObjectIdentification, the running state (player_run.cpp's file statics) and a Confirm hook for the yes/no prompt.
+- Verify: new tools/player_actions_dump harness. Every function it drives is already global, so it links the real
+sources minus main.cpp/ui_io.cpp (the M6 headless stub, which gained a scriptable getInputConfirmation() answer; the
+direction prompts read their digit from its key script) -- zero changes to src/. A hand-built 66x198 level (lit and dark
+rooms, long corridors crossing panel boundaries, a running maze with an enclosed corner, a T, a crossing, a dead end,
+an angled corridor and magma seams, a door corridor with plain/locked/stuck/open/broken doors, a dig corridor with
+magma, quartz, permanent rock, rubble, a secret door and a lit room behind it) is mirrored by
+PlayerActionsTraceTests. 99 scenarios (2.9k steps) run a scripted command string (move, run, tunnel, bash, open, close, disarm,
+search, search mode, teleport) and dump one line per step: position, flags, panel, RNG and FNV hashes of the whole
+floor, treasure list, monster list and inventory. They cover walking/lighting, 20 running layouts and option sets,
+confusion, searching, pickup (gold, stacking, weight prompt, full pack), doors (picking, bashing, breaking, closing,
+monsters in the way), tunnelling (hands, weapon, pick, heavy, confused, rubble, secret door, gold in a vein), every
+portable trap type plus free-fall/free-action/sustain/dying/asleep/armoured/invulnerable/resting variants, floor and
+chest disarming (level gain, the experience cap, chest traps going off, summoning), teleport, plus stat-change and
+adjustment tables: 31k lines, byte-for-byte. A coverage pass over the new C# drove the later scenarios. The first full
+run matched; the only failures in bring-up were scripts that bumped into a monster (C++ attacks, the port refuses) --
+the test records exceptions inline so the diff pins them.
+- Defer:
+  - Bump attacks and bashing a monster (playerAttackMonster(), playerBashAttack() -> monsterTakeHit()): M9. Both keep
+    the "too afraid" refusal and otherwise throw NotSupportedException (tested).
+  - Opening a chest: openClosedChest() drops the contents through monsterDeath(): M9 (throws, tested).
+  - Corroding gas, fire and acid traps: damageCorrodingGas()/damageFire()/damageAcid() destroy pack items
+    (inventoryDamageItem(), inventoryDestroyItem(): M11) and are the same primitives monster breath uses -- M9's
+    damage-spell slice (throw, tested). The poison gas trap's damagePoisonedGas() is self-contained and ported.
+  - The town's store entrances: storeEnter(), M13 (throws).
+  - Message and prompt text that describes a real item (pickup, "You have found <trap>", the pickup prompts):
+    itemDescription(), M11. The messages still zero command_count; only the text is missing.
+  - Hallucination: running's glyph lookups draw exactly the C++ RNG, but every move also redraws through
+    panelPutTile(caveGetTileSymbol()) in sub1/sub3MoveLight, and those rendering draws are still omitted -- so
+    hallucinating while moving diverges until M14's decision (M7's Defer list). The harness only hallucinates while
+    standing still.
+  - The command layer around these: repeat counts and use_last_direction, playerRestOn()'s prompt, and the
+    paralysis/turn bookkeeping between commands -- M15 (executeInputCommands). PlayerSpells' in-game messages still
+    use the display-only PrintMessage (see M7); only playerGainLevel() reaches them here, right after its own
+    command-zeroing message, so that is exact.
+
 ### M9 — Monster AI & melee combat, together with damage-spell primitives                                           
 																											  
 - Scope: monster.cpp (1745 lines: AI movement, melee combat) plus the bolt/ball/breath damage-spell group from  
@@ -280,6 +340,10 @@ underway.
 positions/HP/player HP per turn.                                                                              
 - Defer: monster status-effect spells (confuse/sleep/polymorph/clone/teleport/genocide) and player self-effect  
 spells — those go in M10.                                                                                     
+- Inherited from M8 (all currently throw NotSupportedException): bump attacks (playerAttackMonster from playerMove /
+playerTunnel), playerBashAttack, openClosedChest's monsterDeath, and the item-destroying trap damage
+(damageCorrodingGas/damageFire/damageAcid, which need inventoryDamageItem from M11 -- port the pair together or
+stub the item loss explicitly).
 																											  
 ### M10 — Remaining spell effects + casting layer                                                                   
 																											  
@@ -301,6 +365,10 @@ teleport-other).
 - Verify: mixed — inventory bookkeeping (stacking, weight) is golden-traceable; anything printing flavor text   
 or prompting the player needs manual verification once minimal UI exists, so sequence part of this after M15  
 starts rather than strictly before it.                                                                        
+- From M8: Items.ItemDescription only covers the catalog-name categories (traps, gold, stairs, store entrances) and
+throws for the rest -- replace it with the full itemDescription() here; the pickup/search messages and pickup prompts
+in PlayerMovement are waiting on it for their text. inventoryDamageItem()/inventoryDestroyItem() unblock the fire,
+acid and corroding-gas traps (with M9).
 																											  
 ### M12 — Save/load (JSON)                                                                                          
 																											  
@@ -321,6 +389,8 @@ M11 (inventory), M0 (store data tables).
 arithmetic, unit-testable without RNG.                                                                        
 - Defer: none known; check whether store restocking shares RNG draws with anything running concurrently         
 mid-dungeon-turn before finalizing the harness design.                                                        
+- From M8: stepping onto a town store entrance (PlayerTraps.StepsOnTrap, sub_category 101-106) throws until
+storeEnter() exists.
 																											  
 ### M14 — Full UI                                                                                                   
 																											  
@@ -334,6 +404,8 @@ translation (curses doesn't map 1:1, same as the POC's render loop).
 logic underneath can still be unit-tested.                                                                    
 - Open decision from M7: hallucination's random glyphs (caveGetTileSymbol) draw from the game RNG on every
 rendered tile -- see M7's Defer list. Settle it before (or with) the dungeon view.
+- From M8: the hallucination decision now also covers movement -- sub1/sub3MoveLight redraw through
+caveGetTileSymbol() on every step (running's own glyph lookups are already exact, Dungeon.TileSymbol).
 																											  
 ### M15 — Main loop integration                                                                                     
 																											  
@@ -344,6 +416,9 @@ game_death.cpp, final character-creation wiring.
 - Depends on: effectively everything above.                                                                     
 - Verify: full end-to-end golden trace (multi-turn scripted playthrough, fixed seed, dump full state each turn) 
 plus manual interactive playtesting as the final acceptance gate.                                             
+- From M8: the player commands take their direction as a parameter; the command layer around them -- reading the
+key (getDirectionWithMemory()'s prompt half), repeat counts and use_last_direction, playerRestOn()'s prompt, and
+running's find_count bookkeeping in playDungeon() -- is this milestone's glue.
 																											  
 Out of scope for the whole roadmap: wizard.cpp (debug commands), recall.cpp (monster-memory text, could be      
 picked up opportunistically alongside M0 if desired), original binary save format.                              

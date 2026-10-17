@@ -69,6 +69,7 @@ public sealed class DungeonGenerator
         _dg.CurrentLevel = level;
         _dg.Height = DungeonConstants.MaxHeight;
         _dg.Width = DungeonConstants.MaxWidth;
+        ScreenPanel.InitializeForLevel(_dg);
         _doorIndex = 0;
 
         BlankEntireCave();

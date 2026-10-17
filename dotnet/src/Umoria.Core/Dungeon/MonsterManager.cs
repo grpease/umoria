@@ -199,6 +199,47 @@ public sealed class MonsterManager
         }
     }
 
+    // src/monster_manager.cpp:190 placeMonsterAdjacentTo() (added M8)
+    private bool PlaceAdjacentTo(int monsterId, ref Coord coord, bool sleeping, Coord playerPos, int playerSpeedFlag)
+    {
+        var placed = false;
+
+        for (var i = 0; i <= 9; i++)
+        {
+            var y = coord.Y - 2 + RandomNumber.Next(3);
+            var x = coord.X - 2 + RandomNumber.Next(3);
+            var position = new Coord(y, x);
+
+            if (CoordHelpers.InBounds(_dg, position))
+            {
+                if (_dg.Floor[position.Y, position.X].FeatureId <= TileConstants.MaxOpenSpace && _dg.Floor[position.Y, position.X].CreatureId == 0)
+                {
+                    // PlaceNew() should always return true here.
+                    if (!PlaceNew(position, monsterId, sleeping, playerPos, playerSpeedFlag))
+                    {
+                        return false;
+                    }
+
+                    coord = position;
+
+                    placed = true;
+                    i = 9;
+                }
+            }
+        }
+
+        return placed;
+    }
+
+    // src/monster_manager.cpp:218 monsterSummon() -- places creature
+    // adjacent to given location -RAK- (added M8: summon-rune trap and
+    // chest trap)
+    public bool Summon(ref Coord coord, bool sleeping, Coord playerPos, int playerSpeedFlag)
+    {
+        var monsterId = GetOneSuitableForLevel(_dg.CurrentLevel + MonsterConfig.MonSummonedLevelAdjust);
+        return PlaceAdjacentTo(monsterId, ref coord, sleeping, playerPos, playerSpeedFlag);
+    }
+
     // src/dungeon.cpp:351 dungeonMoveCreatureRecord()
     public void MoveCreatureRecord(Coord from, Coord to)
     {

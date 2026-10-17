@@ -1,4 +1,5 @@
 using Umoria.Core.Config;
+using Umoria.Core.Data.Generated;
 using Umoria.Core.Dungeon;
 using Umoria.Core.Model.Generated;
 
@@ -15,6 +16,11 @@ namespace Umoria.Core.Character;
 // game.command_count -- see PrintMessage below) and
 // printCharacterMovementState() (maintains PY_REPEAT -- see
 // UpdateMovementStateFlags). flushInputBuffer() is UI-only.
+//
+// M8 added the helpers player actions share: the no-interrupt message
+// variant, objectBlockedByMonster(), getDirectionWithMemory()'s prev_dir
+// memory, and a fourth state-mutating "display" routine,
+// displayCharacterExperience() -- which is where level gain happens.
 public static class PlayerCore
 {
     // src/player.cpp:148 playerDisturb() -- something happens to disturb
@@ -100,6 +106,101 @@ public static class PlayerCore
         ScreenRendering.PrintMessage(message);
     }
 
+    // src/ui_io.cpp:316 printMessageNoCommandInterrupt() -- saves and
+    // restores game.command_count around printMessage(), so its net effect
+    // on game state is nil (M8).
+    public static void PrintMessageNoCommandInterrupt(PlayerWorld w, string message)
+    {
+        var count = w.Game.CommandCount;
+
+        PrintMessage(w, message);
+
+        w.Game.CommandCount = count;
+    }
+
+    // src/identification.cpp:941 objectBlockedByMonster() -- "The <monster>
+    // is in your way!" (M8)
+    public static void ObjectBlockedByMonster(PlayerWorld w, int monsterId)
+    {
+        var monster = w.Monsters.Monsters[monsterId];
+        var name = DataCreaturesData.CreaturesList[monster.CreatureId].Name;
+
+        var description = monster.Lit ? $"The {name}" : "Something";
+
+        PrintMessage(w, $"{description} is in your way!");
+    }
+
+    // src/game.cpp:262 getDirectionWithMemory() -- the game-state half:
+    // the direction the player typed is remembered in py.prev_dir for
+    // repeated (counted) commands. Reading the key is input (M14). (M8)
+    public static void RememberDirection(PlayerWorld w, int direction)
+    {
+        w.Py.PrevDir = (char)direction;
+    }
+
+    // src/ui.cpp:728 playerGainLevel() -- increases hit points and level
+    // -RAK- (M8)
+    private static void GainLevel(PlayerWorld w)
+    {
+        var py = w.Py;
+
+        py.Misc.Level++;
+
+        PrintMessage(w, $"Welcome to level {py.Misc.Level}.");
+
+        PlayerStatLogic.CalculateHitPoints(py);
+
+        var newExp = (int)(py.BaseExpLevels[py.Misc.Level - 1] * py.Misc.ExperienceFactor / 100);
+
+        if (py.Misc.Exp > newExp)
+        {
+            // lose some of the 'extra' exp when gaining several levels at once
+            var difExp = py.Misc.Exp - newExp;
+            py.Misc.Exp = newExp + (difExp / 2);
+        }
+
+        // (printCharacterLevel(), printCharacterTitle() -- display)
+
+        // (PlayerSpells' messages are display-only, but the "Welcome" message
+        // above has already zeroed game.command_count, so that's exact.)
+        var spellType = DataPlayerData.Classes[py.Misc.ClassId].ClassToUseMageSpells;
+
+        if (spellType == SpellConfig.SpellTypeMage)
+        {
+            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Int);
+            PlayerSpells.GainMana(py, PlayerConfig.Attr.Int);
+        }
+        else if (spellType == SpellConfig.SpellTypePriest)
+        {
+            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis);
+            PlayerSpells.GainMana(py, PlayerConfig.Attr.Wis);
+        }
+    }
+
+    // src/ui.cpp:760 displayCharacterExperience() -- "prints experience
+    // -RAK-", but it is also where the player gains levels (playerGainLevel())
+    // and max_exp is kept up to date. Only the printLongNumber() is display.
+    // (M8)
+    public static void DisplayCharacterExperience(PlayerWorld w)
+    {
+        var m = w.Py.Misc;
+
+        if (m.Exp > PlayerConfig.PlayerMaxExp)
+        {
+            m.Exp = PlayerConfig.PlayerMaxExp;
+        }
+
+        while (m.Level < PlayerConfig.PlayerMaxLevel && (int)(w.Py.BaseExpLevels[m.Level - 1] * m.ExperienceFactor / 100) <= m.Exp)
+        {
+            GainLevel(w);
+        }
+
+        if (m.Exp > m.MaxExp)
+        {
+            m.MaxExp = m.Exp;
+        }
+    }
+
     // src/ui.cpp:306 printCharacterMovementState() -- the game-state half:
     // PY_REPEAT is cleared, then set again only when the status line would
     // show "Repeat" (not paralysed, not resting, a command count pending).
@@ -129,16 +230,7 @@ public static class PlayerCore
     // and get the light correct. -CJS-
     public static void EndRunning(PlayerWorld w)
     {
-        var py = w.Py;
-
-        if (py.RunningTracker == 0)
-        {
-            return;
-        }
-
-        py.RunningTracker = 0;
-
-        DungeonLighting.MoveCharacterLight(py, w.Dg, w.Treasure, w.Game.Options, py.Pos, py.Pos);
+        DungeonLighting.EndRunning(w.Py, w.Dg, w.Treasure, w.Game.Options);
     }
 
     // src/player.cpp:370 playerChangeSpeed() -- changes speed of monsters
