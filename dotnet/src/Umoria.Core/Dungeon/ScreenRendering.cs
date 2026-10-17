@@ -17,4 +17,13 @@ public static class ScreenRendering
     public static void LiteSpot(Model.Generated.Dungeon dg, Model.Generated.Coord coord)
     {
     }
+
+    // Stand-in for src/ui_io.cpp printMessage(), added in M6 for the
+    // spell-allowance messages ("You can learn some new spells now.").
+    // Same reasoning as LiteSpot: the message line is pure display plus a
+    // message-history buffer nothing outside the UI reads, so it's a
+    // documented no-op at each real call site until the UI milestone (M14).
+    public static void PrintMessage(string message)
+    {
+    }
 }

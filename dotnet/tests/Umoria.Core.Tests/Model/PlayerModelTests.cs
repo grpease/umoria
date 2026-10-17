@@ -42,22 +42,10 @@ public class PlayerModelTests
     public void Player_Misc_ClassId_IndexesClasses()
     {
         // src/data_player.cpp row 1 ("Mage").
-        var player = new Player(
-            Misc: new PlayerMisc(Name: "Test", Gender: true, DateOfBirth: 0, Au: 0, MaxExp: 0, Exp: 0,
-                ExpFraction: 0, Age: 0, Height: 0, Weight: 0, Level: 1, MaxDungeonDepth: 0,
-                ChanceInSearch: 0, Fos: 0, Bth: 0, BthWithBows: 0, Mana: 0, MaxHp: 0, PlussesToHit: 0,
-                PlussesToDamage: 0, Ac: 0, MagicalAc: 0, DisplayToHit: 0, DisplayToDamage: 0, DisplayAc: 0,
-                DisplayToAc: 0, Disarm: 0, SavingThrow: 0, SocialClass: 0, StealthFactor: 0, ClassId: 1,
-                RaceId: 0, HitDie: 0, ExperienceFactor: 0, CurrentMana: 0, CurrentManaFraction: 0,
-                CurrentHp: 0, CurrentHpFraction: 0, History: new string[4]),
-            Stats: new PlayerStats(new byte[6], new byte[6], new short[6], new byte[6]),
-            Flags: new PlayerFlags(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, false, false, false, false, false, false, false, false, false, false, false, false,
-                false, false, false, false, false, false, 0, 0, 0, 0, new byte[32]),
-            Pos: new Coord(0, 0), PrevDir: ' ', BaseHpLevels: new ushort[40], BaseExpLevels: new uint[40],
-            RunningTracker: 0, TemporaryLightOnly: false, MaxScore: 0, Pack: new PlayerPack(0, 0, 0),
-            Inventory: new Inventory[34], // PLAYER_INVENTORY_SIZE, src/inventory.h
-            EquipmentCount: 0, WeaponIsHeavy: false, CarryingLight: false);
+        // Player is a mutable class since M6 (it was a positional record
+        // struct in M1); a fresh instance mirrors the C++ `Player_t{}`.
+        var player = new Player();
+        player.Misc.ClassId = 1;
 
         var characterClass = DataPlayerData.Classes[player.Misc.ClassId];
 

@@ -84,6 +84,11 @@ extern int16_t treasure_levels[TREASURE_MAX_LEVELS + 1];
 // see monster.h).
 void initializeTreasureLevels();
 
+// src/game_run.cpp -- gives a freshly created character their class's
+// starting provisions. Not static for the same reason as above (the M6
+// character-creation harness calls it directly).
+void initializeCharacterInventory();
+
 void seedsInitialize(uint32_t seed);
 void seedSet(uint32_t seed);
 void seedResetToOldSeed();

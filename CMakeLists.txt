@@ -342,3 +342,24 @@ list(APPEND los_dump_source_files tools/los_dump/los_dump.cpp)
 add_executable(los_dump ${los_dump_source_files})
 target_link_libraries(los_dump ${CURSES_LIBRARIES})
 set_target_properties(los_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
+# Character-creation dump harness: verifies the .NET migration's port of
+# character creation (M6, Umoria.Core.Character) against the real compiled
+# C++ game. Unlike the harnesses above, this one also swaps out
+# src/ui_io.cpp for a headless stub with scripted keypresses
+# (tools/char_create_dump/ui_io_stub.cpp), so it can drive the real,
+# curses-interleaved characterCreate() end to end. See
+# tools/char_create_dump/char_create_dump.cpp for details.
+#
+set(char_create_dump_source_files ${source_files})
+list(REMOVE_ITEM char_create_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
+list(APPEND char_create_dump_source_files
+        tools/char_create_dump/char_create_dump.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(char_create_dump ${char_create_dump_source_files})
+target_link_libraries(char_create_dump ${CURSES_LIBRARIES})
+set_target_properties(char_create_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

@@ -9,7 +9,6 @@
 
 static void playDungeon();
 
-static void initializeCharacterInventory();
 static void priceAdjust();
 static char originalCommands(char command);
 static void doCommand(char command);
@@ -155,7 +154,10 @@ void startMoria(uint32_t seed, bool start_new_game, bool roguelike_keys) {
 }
 
 // Init players with some belongings -RAK-
-static void initializeCharacterInventory() {
+// Not static: also called directly from tools/char_create_dump/char_create_dump.cpp,
+// the .NET migration's character-creation (M6) verification harness, which
+// bypasses startMoria() entirely (same reason initializeMonsterLevels() isn't static).
+void initializeCharacterInventory() {
     Inventory_t item{};
 
     // this is needed for bash to work right, it can't hurt anyway

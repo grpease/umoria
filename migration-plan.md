@@ -27,7 +27,7 @@ generation (initially feared otherwise).
 - [x] M3 — Item magic/enchantment engine
 - [x] M4 — Object/treasure placement
 - [x] M5 — Dungeon lighting & line-of-sight
-- [ ] M6 — Character creation
+- [x] M6 — Character creation
 - [ ] M7 — Player status-effects subsystem
 - [ ] M8 — Player movement/action subsystem
 - [ ] M9 — Monster AI & melee combat, together with damage-spell primitives
@@ -152,14 +152,48 @@ later milestones), so there's no existing harness call site to extend yet.
 																											  
 ### M6 — Character creation                                                                                         
 																											  
-- Scope: character.cpp (517 lines) — stat rolling, race/class selection, starting inventory.                    
-- Size: M. Depends on: M0, M1, M3 (starting inventory), M4 (if starting gold uses the same object tables —      
-confirm when read).                                                                                           
-- Verify: golden-trace the fully-created Player_t + starting inventory for fixed seeds. Treat with the same     
-care as dungeon generation — stat rolls consume RNG in a specific order; read the actual call graph before    
-assuming it doesn't reach into store pricing or anything from later milestones.                               
-- Defer: nothing — needed in full before player-action milestones can be tested with a real character.          
-																											  
+- Scope: character.cpp (517 lines) in full, plus the new-character tail of startMoria() (game_run.cpp:
+initializeCharacterInventory(), food, initial spell/mana setup). Done -- Umoria.Core.Character.CharacterCreation;
+the prompts' answers (race, gender, re-roll count, class menu position, name) come in as CharacterChoices.
+- Real call graph (read, not assumed) -- character.cpp is small, but what it calls isn't:
+  - playerSetAndUseStat() (player_stats.cpp) fans out into playerRecalculateBonuses() (player.cpp, which also
+    reads equipped items via inventoryCollectAllItemFlags()), playerCalculateHitPoints(), and -- for casters --
+    playerCalculateAllowedSpellsCount()/playerGainMana() (player.cpp's spell-allowance layer). All ported
+    (PlayerStatLogic, PlayerBonuses, PlayerSpells). None consume RNG; the spell-allowance path prints
+    "You can learn some new spells now.", routed through a new documented no-op ScreenRendering.PrintMessage
+    (same pattern as M5's LiteSpot).
+  - Starting inventory needs inventoryCarryItem() (inventory.cpp, category-sorted insert/stacking) and the
+    object-knowledge slice of identification.cpp (objects_identified[], objectPositionOffset,
+    itemIdentifyAsStoreBought, itemSetColorlessAsIdentified). Ported as Umoria.Core.Items.PlayerInventory/
+    ObjectIdentification; the rest of both files stays with M11.
+  - M4 dependency answered: starting gold does NOT touch the object tables -- it's pure stat/social-class
+    arithmetic plus one randomNumber(25). Starting items come from class_base_provisions (M0 data) copied via
+    M4's InventoryCatalog.CopyFromCatalog, with no magicTreasureMagicalAbility() call, so no M3 dependency either.
+  - No store-pricing reach: confirmed. startMoria()'s storeInitializeOwners() does draw RNG, but BEFORE
+    characterCreate(), so it's an ordering concern for M15's full startup trace, not part of character creation.
+- Model change: M1's Player/PlayerMisc/PlayerStats/PlayerFlags/PlayerPack went from positional record structs to
+mutable classes with zero-valued defaults (`new Player()` == `Player_t{}`). Every player function mutates the C++
+global py in place; with struct semantics nested writes (py.Misc.Level = 1) don't compile (CS1612).
+- Verify: new tools/char_create_dump harness drives the REAL, unmodified characterCreate() -- unlike earlier
+harnesses it can't just avoid initscr(), because characterCreate() is interleaved with curses prompts and
+putString() abort()s headless. Instead that target swaps src/ui_io.cpp for tools/char_create_dump/ui_io_stub.cpp:
+output calls are no-ops, getKeyInput()/getStringInput() replay a scripted key sequence (and fail loudly if the
+script isn't consumed exactly). No test-only copy of the creation flow was added to the game. Only C++ change:
+initializeCharacterInventory() lost its `static` (same precedent as M2/M4's initializeMonsterLevels/
+initializeTreasureLevels). Matrix: 3 seeds x 8 races x 2 genders x every class each race allows = 186 cases,
+re-roll count cycling 0/1/2; dumps every Player_t field (except date_of_birth, wall clock), all 34 inventory slots,
+objects_identified[], and the final RNG state (~49.6k lines). Byte-for-byte match on first run; covers all 6
+classes, the caster spell-allowance path, and 4-line histories. Same mutate-a-baseline sanity check as M0-M5
+(edited the test-output copy, not the checked-in CRLF baseline, per M5's lesson).
+- Defer:
+  - magicInitializeItemNames() (flavor-name shuffling, runs right after creation in startMoria()) -- item naming,
+    M11. Doesn't touch Player_t.
+  - playerGainSpells() (actually learning spells: a menu for mages, random picks for priests) -- only reachable
+    from the in-game study command, not creation. Casting layer, M10.
+  - The display side of creation (race/class menus, character sheet printing, help screens) -- M14.
+  - Seeding: each traced case calls setRandomSeed() directly, like golden_trace_harness, rather than
+    startMoria()'s seedsInitialize() + storeInitializeOwners() sequence -- belongs to M13/M15.
+
 ### M7 — Player status-effects subsystem                                                                            
 																											  
 - Scope: carved out of game_run.cpp (lines ~252-950): poison, confusion, fear, blindness, heroism,              
