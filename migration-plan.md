@@ -30,7 +30,7 @@ generation (initially feared otherwise).
 - [x] M6 — Character creation
 - [x] M7 — Player status-effects subsystem
 - [x] M8 — Player movement/action subsystem
-- [ ] M9 — Monster AI & melee combat, together with damage-spell primitives
+- [x] M9 — Monster AI & melee combat, together with damage-spell primitives
 - [ ] M10 — Remaining spell effects + casting layer
 - [ ] M11 — Items/inventory/identification
 - [ ] M12 — Save/load (JSON)
@@ -325,26 +325,82 @@ the test records exceptions inline so the diff pins them.
     use the display-only PrintMessage (see M7); only playerGainLevel() reaches them here, right after its own
     command-zeroing message, so that is exact.
 
-### M9 — Monster AI & melee combat, together with damage-spell primitives                                           
-																											  
-- Scope: monster.cpp (1745 lines: AI movement, melee combat) plus the bolt/ball/breath damage-spell group from  
-spells.cpp (spellFireBolt, spellFireBall, spellBreath, spellEarthquake, etc.) — these two are genuinely       
-coupled in both directions (monster breath attacks call spellBreath directly, confirmed at                    
-monster.cpp:818-838; player-cast damage spells need monster.cpp's HP/death handling), so build and verify     
-them together, not strictly sequentially. Start with melee-only AI (no spells.cpp dependency), then add       
-ranged/breath attacks once the damage-spell primitives exist.                                                 
-- Size: L — expect to split further into "AI movement," "melee combat," "damage-spell primitives" once          
-underway.                                                                                                     
-- Depends on: M2, M5, M8.                                                                                       
-- Verify: golden-trace a fixed multi-turn sequence (player moves predictably, monsters act), dump monster       
-positions/HP/player HP per turn.                                                                              
-- Defer: monster status-effect spells (confuse/sleep/polymorph/clone/teleport/genocide) and player self-effect  
-spells — those go in M10.                                                                                     
-- Inherited from M8 (all currently throw NotSupportedException): bump attacks (playerAttackMonster from playerMove /
-playerTunnel), playerBashAttack, openClosedChest's monsterDeath, and the item-destroying trap damage
-(damageCorrodingGas/damageFire/damageAcid, which need inventoryDamageItem from M11 -- port the pair together or
-stub the item loss explicitly).
-																											  
+### M9 — Monster AI & melee combat, together with damage-spell primitives
+
+- Scope (as built): all of monster.cpp -- updateMonsters() and every monster move (waking, stun recovery, normal/random/
+confused/fleeing-undead movement, escaping walls, doors, glyphs, eating other monsters, picking up objects, multiplying),
+melee on the player (all 24 attack types), monster spells and breath, monsterTakeHit()/monsterDeath()/monsterSleep() --
+plus what they reach: spells.cpp's damage primitives (spellFireBolt, spellFireBall, spellBreath, spellChangeMonsterHitPoints,
+spellDrainLifeFromMonster, spellDispelCreature, spellEarthquake) and spellTeleportAwayMonster/spellTeleportPlayerTo/
+spellAggravateMonsters/spellLoseEXP; inventory.cpp's damage group (damageFire/Cold/LightningBolt/Acid/CorrodingGas/
+PoisonedGas, damageMinusAC, inventoryDamageItem, inventoryDestroyItem, the set*() predicates, the item-eating and
+disenchanting attacks, inventoryFindRange); player.cpp's playerAttackMonster and helpers, playerSavingThrow,
+playerGainKillExperience, playerTestAttackHits, playerDiedFromString, playerAdjustBonusesForItem; player_bash.cpp's
+playerBashAttack; player_magic.cpp's itemMagicAbilityDamage (slays/brands); monster_manager.cpp's compactMonsters and
+monsterSummonUndead. Done -- Umoria.Core.Creatures.MonsterAi / MonsterAttacks / MonsterSpells / MonsterLife,
+Character.PlayerCombat, Items.InventoryDamage, Spells.DamageSpells / SpellEffects / MagicSpellFlags.
+- Real call graph (read, not assumed):
+  - The plan expected one coupling (monster breath -> spellBreath). There are more, all one level deep: monster attacks reach
+    inventory.cpp (item theft, eating food/light/charges, disenchanting, the elemental damage primitives that destroy pack
+    items) and spells.cpp (thieves teleport away, experience drain, aggravation); monster spells reach teleport-to/away,
+    monsterSummon/monsterSummonUndead and spellBreath; every damage spell and both player attacks kill through
+    monsterTakeHit() -> monsterDeath() -> dungeonSummonObject() (M4/M5). Nothing reached M10's casting layer or M11's
+    item-use dispatch, so the slice closed cleanly.
+  - inventoryDamageItem()/inventoryDestroyItem() (deferred by M8 to "M9/M11") turned out self-contained, so M8's fire, acid
+    and corroding-gas traps are unblocked here, not in M11. damagePoisonedGas() moved from PlayerTraps to InventoryDamage.
+  - creature_recall[] (monster memory) is game state, not just recall display: monsterTakeHit() and spellBreath() read its
+    treasure bits back before rewriting them, and nearly every encounter updates it. Added as Model.Generated.Recall,
+    owned by PlayerWorld (it outlives levels, like objects_identified[]).
+  - hack_monptr ("a horrible hack") is how compactMonsters()/monsterTakeHit() avoid compacting the monster array under
+    updateMonsters()'s scan: monsters at or below it are only removed from the level. It lives on MonsterManager.HackMonptr;
+    Popm() now calls the real CompactMonsters() instead of throwing.
+  - "Display" calls re-checked per M7's lesson: printCharacterGoldValue/CurrentMana/Winner/Level/Title are pure display;
+    putQIO() only sets screen_has_changed (a UI redraw hint); every printMessage() on these paths zeroes command_count and
+    is routed through PlayerCore.PrintMessage. The insult attack's text choice draws RNG, so it is kept.
+  - Undefined behaviour in the original: monsterMoveOutOfWall() fills only as many directions[] entries as there are open
+    squares, but makeMove() always reads five -- with fewer than five it reads uninitialized stack memory. The port zeroes
+    the array (direction 0 maps to the boundary corner, a skipped attempt), matching the original whenever the garbage isn't
+    a valid 1-9. The harness never puts a monster in that position (earthquake is a free token for this reason).
+  - Platform quirk: monsterAttackingUpdate()'s wake-up test `1L << (29 - stealth_factor)` is a 32-bit long on the
+    reference MSVC build, so a stealth factor of -2 shifts into the sign bit and nothing ever notices the player. The port's
+    int shift reproduces MSVC (a 64-bit-long Linux build would differ).
+  - game.wizard_mode is always false (wizard.cpp is out of scope), so monsterUpdateVisibility()'s wizard-sight branch isn't
+    ported.
+- Model changes: Model.Generated.Recall (Recall_t) + PlayerWorld.CreatureRecall; MonsterManager.HackMonptr, a PrintMessage
+hook (PlayerWorld wires it to PlayerCore.PrintMessage) for compactMonsters()'s message, CompactMonsters(), SummonUndead();
+PlayerWorld switched from a primary constructor to an explicit one; MonsterConfig gained the full move/spell/defense flag
+sets and the sight/spell/multiply limits; TreasureConfig gained OBJECT_BOLTS_MAX_RANGE, OBJECTS_RUNE_PROTECTION,
+TR_STATS and TR_EGO_WEAPON. PlayerCore.UpdateMonstersWithoutMoving is now the real updateMonsters(false).
+- Verify: new tools/monster_combat_dump harness, same build pattern as M8 (real sources minus main.cpp/ui_io.cpp plus the
+headless stub) -- zero changes to src/. A hand-built arena (lit room with a granite pillar and an enclosed 3x3 block, a
+corridor with closed/locked/stuck/secret doors, a dark room) is mirrored by MonsterCombatTraceTests. Each scenario places
+monsters from a spec string (creature, position, sleep/hp/confused/stunned overrides, or a fill of N copies) and runs a
+script where every turn-taking command is followed by playDungeon()'s `game_turn++; updateMonsters(true)`; two lines per
+step (player/RNG state with hashes of floor, treasure, inventory and monster memory, then every monster). 104 scenarios,
+32k lines: player melee (weapons, bare hands, missiles and ego missiles with every slay/brand, criticals, bashing,
+stunning, the confusing touch), protection from evil, death; sleeping/stealth/aggravation/resting, random movers, a fast
+player, breeding, both compaction paths (main loop and from inside updateMonsters() at the 125-monster cap), cannibal
+breeders, eating other monsters, picking up objects, door opening/bashing, glyphs (held, broken, under the player), phasing
+ghosts, escaping and dying in rock, infravision, invisibility, blindness, losing sight of a monster, Quylthulgs; every
+monster attack type incl. sustains/resistances/free action; monster spells (teleports, wounds, hold, blind, confuse, fear,
+slow, drain mana, both summons, all five breaths, a breath killing the player, breath ordering vs. monster ids); the
+player's bolts/balls of every element incl. resistances, monster-HP/drain-life/dispel/earthquake/sleep/aggravate, killing
+the Balrog (total_winner); chests dropping their contents; and the fire/acid/corroding-gas traps. The first run matched;
+a coverage pass then drove ~20 more scenarios (it found e.g. protection from evil never triggering at level 1 and mana
+drain never firing at 0 mana), and they matched too. Coverlet was then blocked by Smart App Control, so the last few
+targets were confirmed from the trace instead.
+- Defer:
+  - To M10 with the rest of spells.cpp: the monster-status spells (sleep/confuse/slow/speed monster, polymorph, clone,
+    teleport-other, genocide, turn undead) and the terrain/light spells that hurt monsters as a side effect
+    (spellLightLine, spellWallToMud, spellBuildWall, spellDestroyArea). monsterSleep() itself is ported (MonsterLife.Sleep).
+  - To M11: damageMinusAC()'s "Your <armour> ..." messages carry the bare catalog name until itemDescription() exists
+    (they still zero command_count). player_throw.cpp (thrown objects, which also kill through monsterTakeHit()) is M11's.
+  - To M15: the main loop's monster glue -- the per-turn compactMonsters() check, MON_CHANCE_OF_NEW new monsters, and
+    paralysis/rest skipping the command. The harness emulates only `game_turn++; updateMonsters(true)` and calls
+    compactMonsters() from a token.
+  - Hallucination still excluded (M7/M8's open decision): dungeonLiteSpot() redraws via caveGetTileSymbol(), which
+    draws RNG while hallucinating, and monster visibility changes call it.
+
 ### M10 — Remaining spell effects + casting layer                                                                   
 																											  
 - Scope: spells.cpp's remaining groups — detection/utility (treasure/object/trap/door detection, mapping,       
@@ -354,7 +410,10 @@ cost, failure chance).
 - Size: M-L. Depends on: M1, M5, M6, M7, and M9 for anything touching monster HP.                               
 - Verify: per-group golden-trace hooks (fixed seed, fixed caster position/direction, dump                       
 affected-tile/monster-state deltas).                                                                          
-- Defer: nothing material; this closes out spells.cpp.                                                          
+- Defer: nothing material; this closes out spells.cpp.
+- From M9: the damage primitives, teleport away/to, aggravate and lose-experience are already ported
+(Spells.DamageSpells / SpellEffects); what is left of spells.cpp is the detection/utility group, the monster-status
+spells and the terrain/light spells listed in M9's Defer.                                                          
 																											  
 ### M11 — Items/inventory/identification                                                                            
 																											  
@@ -368,7 +427,9 @@ starts rather than strictly before it.
 - From M8: Items.ItemDescription only covers the catalog-name categories (traps, gold, stairs, store entrances) and
 throws for the rest -- replace it with the full itemDescription() here; the pickup/search messages and pickup prompts
 in PlayerMovement are waiting on it for their text. inventoryDamageItem()/inventoryDestroyItem() unblock the fire,
-acid and corroding-gas traps (with M9).
+acid and corroding-gas traps (with M9). (M9 did that: inventoryDamageItem()/inventoryDestroyItem() were self-contained.)
+- From M9: damageMinusAC()'s armour messages carry the bare catalog name until itemDescription() exists;
+player_throw.cpp (thrown objects) kills through MonsterLife.TakeHit.
 																											  
 ### M12 — Save/load (JSON)                                                                                          
 																											  
@@ -419,6 +480,8 @@ plus manual interactive playtesting as the final acceptance gate.
 - From M8: the player commands take their direction as a parameter; the command layer around them -- reading the
 key (getDirectionWithMemory()'s prompt half), repeat counts and use_last_direction, playerRestOn()'s prompt, and
 running's find_count bookkeeping in playDungeon() -- is this milestone's glue.
+- From M9: the per-turn monster glue -- the compactMonsters() check when the list is nearly full, MON_CHANCE_OF_NEW
+new monsters, and skipping the command while paralysed or resting -- before updateMonsters(true).
 																											  
 Out of scope for the whole roadmap: wizard.cpp (debug commands), recall.cpp (monster-memory text, could be      
 picked up opportunistically alongside M0 if desired), original binary save format.                              

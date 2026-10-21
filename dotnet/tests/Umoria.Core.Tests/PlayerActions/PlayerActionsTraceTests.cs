@@ -63,61 +63,12 @@ public class PlayerActionsTraceTests
     }
 
     [Fact]
-    public void BumpAttack_IsNotPortedYet()
-    {
-        // Melee combat is M9; walking into a monster must refuse rather
-        // than silently do nothing.
-        var (py, identification) = PlayerTrace.CreateCharacter(12345, 0, true, 0, 0);
-        var w = BuildTestLevel(py, identification, 1);
-        py.Pos = new Coord(8, 20);
-        w.Dg.Floor[8, 20].CreatureId = 1;
-        PlaceMonster(w, new Coord(8, 21), true);
-
-        Assert.Throws<NotSupportedException>(() => PlayerMovement.Move(w, 6, true));
-
-        // ...and so must bashing it (monsterTakeHit(), M9).
-        Assert.Throws<NotSupportedException>(() => PlayerDoors.Bash(w, 6));
-    }
-
-    [Fact]
-    public void OpeningAChest_IsNotPortedYet()
-    {
-        // openClosedChest() drops the contents through monsterDeath() (M9).
-        var (py, identification) = PlayerTrace.CreateCharacter(12345, 0, true, 0, 0);
-        var w = BuildTestLevel(py, identification, 1);
-        py.Pos = TrapStart;
-        PlaceChest(w, TrapSpot, 0, false);
-
-        Assert.Throws<NotSupportedException>(() => PlayerDoors.OpenClosedObject(w, 6));
-    }
-
-    [Theory]
-    [InlineData(TrapCorrodingGas)]
-    [InlineData(TrapFire)]
-    [InlineData(TrapAcid)]
-    public void ItemDestroyingTraps_AreNotPortedYet(int trap)
-    {
-        // damageCorrodingGas()/damageFire()/damageAcid() destroy pack items
-        // (M9 damage primitives / M11).
-        var (py, identification) = PlayerTrace.CreateCharacter(12345, 0, true, 0, 0);
-        var w = BuildTestLevel(py, identification, 1);
-        py.Pos = TrapStart;
-        w.Objects.SetTrap(TrapSpot, trap - 1);
-
-        Assert.Throws<NotSupportedException>(() => PlayerMovement.Move(w, 6, true));
-    }
-
-    [Fact]
     public void ItemDescription_CoversOnlyTheCatalogNameCategories()
     {
         Assert.Equal("a trap door.", ItemDescription.Describe(InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjTrapList + 3)));
         Assert.Equal("the entrance to the General Store.", ItemDescription.Describe(InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjStoreDoor)));
         Assert.Throws<NotSupportedException>(() => ItemDescription.Describe(InventoryCatalog.CopyFromCatalog(326)));
     }
-
-    private const int TrapCorrodingGas = 10;
-    private const int TrapFire = 12;
-    private const int TrapAcid = 13;
 
     // Same order and values as player_actions_dump.cpp's main().
     private static IEnumerable<Scenario> Scenarios()

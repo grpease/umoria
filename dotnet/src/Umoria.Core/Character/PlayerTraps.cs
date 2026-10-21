@@ -12,14 +12,12 @@ namespace Umoria.Core.Character;
 // M8: traps. playerStepsOnTrap() and the trap* effects are file-static in
 // src/player_move.cpp; disarming and chest traps are src/player_traps.cpp.
 //
-// Not ported (throw NotSupportedException, never silently skipped):
-//   - corroding gas, fire and acid traps: damageCorrodingGas() /
-//     damageFire() / damageAcid() destroy pack items (inventoryDamageItem(),
-//     M11) and are the same primitives monster breath and spells use -- M9's
-//     damage-spell slice.
-//   - the town's store entrances (storeEnter(): M13).
-// The poison gas trap's damagePoisonedGas() is only playerTakesHit() plus a
-// poison timer, so it is ported here.
+// Not ported (throws NotSupportedException, never silently skipped): the
+// town's store entrances (storeEnter(): M13).
+//
+// M9: the corroding gas, fire and acid traps, deferred in M8, now run
+// through Items.InventoryDamage -- the same damage primitives monster
+// attacks and breath use (damagePoisonedGas() moved there too).
 public static class PlayerTraps
 {
     // src/player_move.cpp:214 enum class TrapTypes
@@ -208,14 +206,6 @@ public static class PlayerTraps
         }
     }
 
-    // src/inventory.cpp:579 damagePoisonedGas() -- poison gas the idiot. -RAK-
-    private static void DamagePoisonedGas(PlayerWorld w, int damage, string creatureName)
-    {
-        PlayerCore.TakesHit(w, damage, creatureName);
-
-        w.Py.Flags.Poisoned = (short)(w.Py.Flags.Poisoned + 12 + RandomNumber.Next(damage));
-    }
-
     private static void TrapSlowDart(PlayerWorld w, string description, int dam)
     {
         var f = w.Py.Flags;
@@ -288,17 +278,23 @@ public static class PlayerTraps
                 TrapRockfall(w, coord, damage);
                 break;
             case TrapTypes.CorrodingGas:
-                throw new NotSupportedException("damageCorrodingGas() destroys pack items -- M9 damage primitives / M11, not yet ported.");
+                PlayerCore.PrintMessage(w, "A strange red gas surrounds you.");
+                InventoryDamage.DamageCorrodingGas(w, "corrosion gas");
+                break;
             case TrapTypes.SummonMonster:
                 TrapSummonMonster(w, coord);
                 break;
             case TrapTypes.FireTrap:
-                throw new NotSupportedException("damageFire() destroys pack items -- M9 damage primitives / M11, not yet ported.");
+                PlayerCore.PrintMessage(w, "You are enveloped in flames!");
+                InventoryDamage.DamageFire(w, damage, "a fire trap");
+                break;
             case TrapTypes.AcidTrap:
-                throw new NotSupportedException("damageAcid() destroys pack items -- M9 damage primitives / M11, not yet ported.");
+                PlayerCore.PrintMessage(w, "You are splashed with acid!");
+                InventoryDamage.DamageAcid(w, damage, "an acid trap");
+                break;
             case TrapTypes.PoisonGasTrap:
                 PlayerCore.PrintMessage(w, "A pungent green gas surrounds you!");
-                DamagePoisonedGas(w, damage, "a poison gas trap");
+                InventoryDamage.DamagePoisonedGas(w, damage, "a poison gas trap");
                 break;
             case TrapTypes.BlindingGas:
                 PlayerCore.PrintMessage(w, "A black gas surrounds you!");

@@ -402,3 +402,23 @@ list(APPEND player_actions_dump_source_files
 add_executable(player_actions_dump ${player_actions_dump_source_files})
 target_link_libraries(player_actions_dump ${CURSES_LIBRARIES})
 set_target_properties(player_actions_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+#
+# Test-only target for the .NET migration (M9): drives monster AI, monster
+# and player melee, monster spells and the damage-spell primitives through
+# scripted turns on a hand-built arena and dumps the state after each one.
+# Same shape as player_actions_dump: real sources minus main.cpp/ui_io.cpp,
+# plus the headless ui_io stub. See
+# tools/monster_combat_dump/monster_combat_dump.cpp for details.
+#
+set(monster_combat_dump_source_files ${source_files})
+list(REMOVE_ITEM monster_combat_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
+list(APPEND monster_combat_dump_source_files
+        tools/monster_combat_dump/monster_combat_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(monster_combat_dump ${monster_combat_dump_source_files})
+target_link_libraries(monster_combat_dump ${CURSES_LIBRARIES})
+set_target_properties(monster_combat_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

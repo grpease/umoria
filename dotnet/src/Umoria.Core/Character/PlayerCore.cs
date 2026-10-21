@@ -350,17 +350,10 @@ public static class PlayerCore
 
     // src/monster.cpp:1313 updateMonsters(false) -- "light, but do not move
     // critters": the status effects call this after any change to what the
-    // player can see. Per monster it updates distance/visibility via
-    // monsterUpdateVisibility(), which is M9's (monster AI) to port. With
-    // no live monsters (or a dead character) the original's loop body never
-    // runs, so that case is exact; otherwise this throws rather than
-    // silently skip a real state update.
+    // player can see. (Until M9 this threw with live monsters; it is now
+    // Creatures.MonsterAi.UpdateMonsters.)
     public static void UpdateMonstersWithoutMoving(PlayerWorld w)
     {
-        if (w.Monsters.NextFreeMonsterId > MonsterConfig.MonMinIndexId && !w.Game.CharacterIsDead)
-        {
-            throw new NotSupportedException(
-                "updateMonsters(false) with live monsters needs monsterUpdateVisibility() (M9), not yet ported.");
-        }
+        Creatures.MonsterAi.UpdateMonsters(w, false);
     }
 }

@@ -57,19 +57,6 @@ public class StatusEffectsTraceTests
         PlayerTrace.AssertMatches(expected, actual, "scenario ");
     }
 
-    [Fact]
-    public void UpdateMonstersWithoutMoving_ThrowsWithLiveMonsters()
-    {
-        // Monster visibility is M9; the stand-in must refuse rather than
-        // silently skip it once a monster exists.
-        var dg = new Model.Generated.Dungeon();
-        var monsters = new MonsterManager(dg);
-        monsters.PlaceNew(new Coord(5, 5), 1, false, new Coord(10, 10), 0);
-        var w = new PlayerWorld(new Player(), dg, new GameState(), monsters, new TreasureList());
-
-        Assert.Throws<NotSupportedException>(() => PlayerCore.UpdateMonstersWithoutMoving(w));
-    }
-
     // Same order and values as status_effects_dump.cpp's main().
     private static IEnumerable<Scenario> Scenarios()
     {

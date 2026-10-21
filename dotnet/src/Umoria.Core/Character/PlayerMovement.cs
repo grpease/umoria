@@ -15,9 +15,8 @@ namespace Umoria.Core.Character;
 // PlayerRunning.
 //
 // Not ported here:
-//   - Bump attacks (playerAttackMonster(), monster combat): M9.
-//     AttackPosition() keeps the "too afraid" refusal and throws
-//     NotSupportedException otherwise.
+//   - (Bump attacks, deferred in M8, are PlayerCombat.AttackMonster since
+//     M9.)
 //   - Message and prompt text that needs itemDescription() for a real item
 //     (pickup, "You have found <trap>"): M11. Those messages still zero
 //     game.command_count via PlayerCore.PrintMessage; only their text is
@@ -210,7 +209,7 @@ public static class PlayerMovement
             return;
         }
 
-        throw new NotSupportedException("playerAttackMonster() (melee combat) is M9, not yet ported.");
+        PlayerCombat.AttackMonster(w, coord);
     }
 
     // src/player_move.cpp:332 playerRandomMovement()

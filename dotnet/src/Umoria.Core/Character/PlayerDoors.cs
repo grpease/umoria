@@ -1,6 +1,7 @@
 using Umoria.Core.Config;
 using Umoria.Core.Data.Generated;
 using Umoria.Core.Dungeon;
+using Umoria.Core.Model;
 using Umoria.Core.Model.Generated;
 using Umoria.Core.Rng;
 
@@ -11,11 +12,9 @@ namespace Umoria.Core.Character;
 // Each command takes the direction getDirectionWithMemory() returned (see
 // PlayerCore.RememberDirection).
 //
-// Not ported (throw NotSupportedException):
-//   - opening a chest: openClosedChest() drops the chest's contents through
-//     monsterDeath() (M9).
-//   - bashing a monster: playerBashAttack() needs monsterTakeHit() (M9).
-//     The "You are afraid!" refusal before it is ported.
+// M9 filled in the two M8 deferrals: opening a chest (openClosedChest()
+// drops the contents through monsterDeath()) and bashing a monster
+// (PlayerCombat.BashAttack).
 public static class PlayerDoors
 {
     // src/player.cpp:1229 playerLockPickingSkill()
@@ -73,6 +72,74 @@ public static class PlayerDoors
         }
     }
 
+    // src/player.cpp:1270 openClosedChest() (M9)
+    private static void OpenClosedChest(PlayerWorld w, Coord coord)
+    {
+        var py = w.Py;
+        var treasureId = w.Dg.Floor[coord.Y, coord.X].TreasureId;
+        ref var item = ref w.Treasure[treasureId];
+
+        var success = false;
+
+        if ((item.Flags & TreasureConfig.Chests.ChLocked) != 0)
+        {
+            if (py.Flags.Confused > 0)
+            {
+                PlayerCore.PrintMessage(w, "You are too confused to pick the lock.");
+            }
+            else if (LockPickingSkill(py) - item.DepthFirstFound > RandomNumber.Next(100))
+            {
+                PlayerCore.PrintMessage(w, "You have picked the lock.");
+
+                py.Misc.Exp += item.DepthFirstFound;
+                PlayerCore.DisplayCharacterExperience(w);
+
+                success = true;
+            }
+            else
+            {
+                PlayerCore.PrintMessageNoCommandInterrupt(w, "You failed to pick the lock.");
+            }
+        }
+        else
+        {
+            success = true;
+        }
+
+        if (success)
+        {
+            item.Flags &= ~TreasureConfig.Chests.ChLocked;
+            item.SpecialNameId = (byte)SpecialNameIds.SnEmpty;
+            w.Identification.SpellItemIdentifyAndRemoveRandomInscription(ref item);
+            item.Cost = 0;
+        }
+
+        // Was chest still trapped?
+        if ((item.Flags & TreasureConfig.Chests.ChLocked) != 0)
+        {
+            return;
+        }
+
+        // Oh, yes it was...   (Snicker)
+        PlayerTraps.ChestTrap(w, coord);
+
+        // (the chest may have exploded: re-read the tile)
+        var chestId = w.Dg.Floor[coord.Y, coord.X].TreasureId;
+        if (chestId != 0)
+        {
+            ref var chest = ref w.Treasure[chestId];
+
+            // Chest treasure is allocated as if a creature had been killed.
+            // clear the cursed chest/monster win flag, so that people
+            // can not win by opening a cursed chest
+            chest.Flags &= ~TreasureConfig.Flags.TrCursed;
+
+            Creatures.MonsterLife.Death(w, coord, w.Treasure[chestId].Flags);
+
+            w.Treasure[w.Dg.Floor[coord.Y, coord.X].TreasureId].Flags = 0;
+        }
+    }
+
     // src/player.cpp:1321 playerOpenClosedObject() -- opens a closed door
     // or closed chest. -RAK-
     public static void OpenClosedObject(PlayerWorld w, int dir)
@@ -97,7 +164,7 @@ public static class PlayerDoors
             }
             else if (item.CategoryId == TreasureCategory.TvChest)
             {
-                throw new NotSupportedException("openClosedChest() drops the contents via monsterDeath() (M9), not yet ported.");
+                OpenClosedChest(w, coord);
             }
             else
             {
@@ -245,7 +312,7 @@ public static class PlayerDoors
             return;
         }
 
-        throw new NotSupportedException("playerBashAttack() needs monsterTakeHit() (M9), not yet ported.");
+        PlayerCombat.BashAttack(w, coord);
     }
 
     // src/player_bash.cpp:163 playerBashClosedDoor()

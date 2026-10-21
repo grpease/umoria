@@ -18,8 +18,11 @@ namespace Umoria.Core.Dungeon;
 // dungeonMoveCreatureRecord(), dungeonDeleteMonster(),
 // dungeonRemoveMonsterFromLevel(), and dungeonDeleteMonsterRecord() -- the
 // same migration-plan.md milestone that also unblocked
-// ObjectPlacement.DeleteObject(). compactMonsters() is still deferred (see
-// Popm()'s comment).
+// ObjectPlacement.DeleteObject().
+//
+// M9 (monster AI) added compactMonsters() and the hack_monptr global it
+// shares with monster.cpp's updateMonsters() loop (HackMonptr below), plus
+// monsterSummonUndead().
 //
 // The original reads the player's position/speed via the global `py`
 // (Player_t); since no Player singleton is wired up yet (M1 only defined
@@ -33,11 +36,23 @@ public sealed class MonsterManager
     public int NextFreeMonsterId { get; private set; } = MonsterConfig.MonMinIndexId;
 
     // src/monster_manager.cpp:17 monster_multiply_total -- total count of
-    // in-progress creature reproductions this level. Nothing increments
-    // this yet (monster.cpp's reproduction logic is M9), so it stays 0
-    // until then; RemoveMonsterFromLevel()'s guarded decrement is already
-    // safe for that.
+    // in-progress creature reproductions this level (incremented by
+    // monsterMultiply(), Creatures.MonsterAi, M9).
     public int MonsterMultiplyTotal { get; set; }
+
+    // src/monster.cpp:12 hack_monptr -- "A horrible hack, needed because
+    // compactMonsters() is called from deep within updateMonsters() via
+    // monsterPlaceNew() and monsterSummon()." The id of the monster being
+    // processed (or -1): monsters at or below it are only removed from the
+    // level, not compacted out of the array, so the scan stays valid. (M9)
+    public int HackMonptr { get; set; } = -1;
+
+    // The game-state half of printMessage() for compactMonsters()'s
+    // "Compacting monsters..." (it zeroes game.command_count). MonsterManager
+    // has no GameState of its own, so Character.PlayerWorld wires this to
+    // PlayerCore.PrintMessage; standalone (dungeon generation) it is the
+    // display-only no-op. (M9)
+    public Action<string> PrintMessage { get; set; } = ScreenRendering.PrintMessage;
 
     private readonly Model.Generated.Dungeon _dg;
 
@@ -74,31 +89,81 @@ public sealed class MonsterManager
         return levels;
     }
 
-    // src/monster_manager.cpp:21 popm()
+    // src/monster_manager.cpp:21 popm() -- returns -1 if could not
+    // allocate a monster.
     private int Popm()
     {
         if (NextFreeMonsterId == MonsterConstants.MonTotalAllocations)
         {
-            // compactMonsters() (src/monster_manager.cpp:250) is unreachable
-            // here: even the busiest level-1 seed places ~24 of 125 slots.
-            // DeleteMonster()/RemoveMonsterFromLevel() landed in M5, but
-            // compactMonsters() itself still needs hack_monptr
-            // (src/monster.h), a global tied to monster.cpp's updateMonsters()
-            // AI loop -- that's M9, not M5. Throwing (rather than silently
-            // returning failure, which the original treats as a soft error)
-            // makes it loud if a future milestone's monster count ever gets
-            // this high before M9 lands.
-            throw new NotImplementedException(
-                "compactMonsters() is not ported yet (deferred to M9); monster allocation should never reach capacity before then.");
+            if (!CompactMonsters())
+            {
+                return -1;
+            }
         }
 
         return NextFreeMonsterId++;
+    }
+
+    // src/monster_manager.cpp:250 compactMonsters() -- returns true if any
+    // monsters were deleted, false if could not delete any monsters. (M9)
+    public bool CompactMonsters()
+    {
+        PrintMessage("Compacting monsters...");
+
+        var curDis = 66;
+        var deleteAny = false;
+
+        while (!deleteAny)
+        {
+            for (var i = NextFreeMonsterId - 1; i >= MonsterConfig.MonMinIndexId; i--)
+            {
+                if (curDis < Monsters[i].DistanceFromPlayer && RandomNumber.Next(3) == 1)
+                {
+                    if ((DataCreaturesData.CreaturesList[Monsters[i].CreatureId].Movement & MonsterConfig.Move.CmWin) != 0)
+                    {
+                        // Never compact away the Balrog!!
+                    }
+                    else if (HackMonptr < i)
+                    {
+                        // In case this is called from within updateMonsters().
+                        DeleteMonster(i);
+                        deleteAny = true;
+                    }
+                    else
+                    {
+                        // RemoveMonsterFromLevel() does not decrement
+                        // NextFreeMonsterId, so don't set deleteAny if this
+                        // was called.
+                        RemoveMonsterFromLevel(i);
+                    }
+                }
+            }
+
+            if (!deleteAny)
+            {
+                curDis -= 6;
+
+                // Can't delete any monsters, return failure.
+                if (curDis < 0)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     // src/monster_manager.cpp:31 monsterPlaceNew()
     public bool PlaceNew(Coord coord, int creatureId, bool sleeping, Coord playerPos, int playerSpeedFlag)
     {
         var monsterId = Popm();
+
+        // Check for case where could not allocate space for the monster
+        if (monsterId == -1)
+        {
+            return false;
+        }
 
         var creature = DataCreaturesData.CreaturesList[creatureId];
 
@@ -238,6 +303,41 @@ public sealed class MonsterManager
     {
         var monsterId = GetOneSuitableForLevel(_dg.CurrentLevel + MonsterConfig.MonSummonedLevelAdjust);
         return PlaceAdjacentTo(monsterId, ref coord, sleeping, playerPos, playerSpeedFlag);
+    }
+
+    // src/monster_manager.cpp:224 monsterSummonUndead() -- places undead
+    // adjacent to given location -RAK- (M9: monster spell)
+    public bool SummonUndead(ref Coord coord, Coord playerPos, int playerSpeedFlag)
+    {
+        int monsterId;
+        var maxLevels = _monsterLevels[MonsterConstants.MonMaxLevels];
+
+        do
+        {
+            monsterId = RandomNumber.Next(maxLevels) - 1;
+            for (var i = 0; i <= 19;)
+            {
+                if ((DataCreaturesData.CreaturesList[monsterId].Defenses & MonsterConfig.Defense.CdUndead) != 0)
+                {
+                    i = 20;
+                    maxLevels = 0;
+                }
+                else
+                {
+                    monsterId++;
+                    if (monsterId > maxLevels)
+                    {
+                        i = 20;
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                }
+            }
+        } while (maxLevels != 0);
+
+        return PlaceAdjacentTo(monsterId, ref coord, false, playerPos, playerSpeedFlag);
     }
 
     // src/dungeon.cpp:351 dungeonMoveCreatureRecord()

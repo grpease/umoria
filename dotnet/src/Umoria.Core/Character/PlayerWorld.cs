@@ -14,22 +14,44 @@ namespace Umoria.Core.Character;
 // treasure list), the object-knowledge table (objects_identified[], needed
 // for pickup stacking and chest identification), the running algorithm's
 // state (static in the original) and the yes/no prompt hook.
-public sealed class PlayerWorld(
-    Player py,
-    Model.Generated.Dungeon dg,
-    GameState game,
-    MonsterManager monsters,
-    TreasureList treasure,
-    ObjectIdentification? identification = null)
+//
+// M9 added the monster memories (creature_recall[], which persist across
+// levels like objects_identified[]) and routes MonsterManager's
+// compactMonsters() message through PlayerCore.PrintMessage.
+public sealed class PlayerWorld
 {
-    public Player Py { get; } = py;
-    public Model.Generated.Dungeon Dg { get; } = dg;
-    public GameState Game { get; } = game;
-    public MonsterManager Monsters { get; } = monsters;
-    public TreasureList Treasure { get; } = treasure;
+    public PlayerWorld(
+        Player py,
+        Model.Generated.Dungeon dg,
+        GameState game,
+        MonsterManager monsters,
+        TreasureList treasure,
+        ObjectIdentification? identification = null,
+        Recall[]? creatureRecall = null)
+    {
+        Py = py;
+        Dg = dg;
+        Game = game;
+        Monsters = monsters;
+        Treasure = treasure;
+        Objects = new ObjectPlacement(dg, treasure);
+        Identification = identification ?? new ObjectIdentification();
+        CreatureRecall = creatureRecall ?? Recall.CreateTable();
 
-    public ObjectPlacement Objects { get; } = new(dg, treasure);
-    public ObjectIdentification Identification { get; } = identification ?? new ObjectIdentification();
+        monsters.PrintMessage = message => PlayerCore.PrintMessage(this, message);
+    }
+
+    public Player Py { get; }
+    public Model.Generated.Dungeon Dg { get; }
+    public GameState Game { get; }
+    public MonsterManager Monsters { get; }
+    public TreasureList Treasure { get; }
+
+    public ObjectPlacement Objects { get; }
+    public ObjectIdentification Identification { get; }
+
+    // src/recall.h creature_recall[] -- monster memories. -CJS- (M9)
+    public Recall[] CreatureRecall { get; }
 
     // src/player_run.cpp's file-static find_* variables.
     public RunState Run { get; } = new();

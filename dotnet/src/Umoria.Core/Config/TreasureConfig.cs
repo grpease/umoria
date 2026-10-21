@@ -21,9 +21,14 @@ public static class TreasureConfig
     public const int ObjectChanceSpecial = 6; // magic_chance/# special magic
     public const int ObjectChanceCursed = 13; // 10*magic_chance/# cursed items
 
+    public const int ObjectBoltsMaxRange = 18; // Maximum range of bolts and balls (M9)
+    public const int ObjectsRuneProtection = 3000; // Rune of protection resistance (M9)
+
     // from config::treasure::flags in src/config.cpp
     public static class Flags
     {
+        public const uint TrStats = 0x0000003F; // the stats must be the low 6 bits (M9)
+        public const uint TrEgoWeapon = 0x0007E000; // (M9)
         public const uint TrStr = 0x00000001;
         public const uint TrInt = 0x00000002;
         public const uint TrWis = 0x00000004;
