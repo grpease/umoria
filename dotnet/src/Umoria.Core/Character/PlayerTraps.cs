@@ -155,7 +155,7 @@ public static class PlayerTraps
         {
             if (!sustained)
             {
-                PlayerStatLogic.StatRandomDecrease(w.Py, stat);
+                PlayerStatLogic.StatRandomDecrease(w.Py, stat, w.Print);
 
                 PlayerCore.TakesHit(w, dam, description);
 
@@ -246,7 +246,7 @@ public static class PlayerTraps
 
         // the death label: itemDescription(item) -- traps are one of its
         // simple, catalog-name-only categories
-        string Description() => ItemDescription.Describe(item);
+        string Description() => ItemDescription.Describe(w.Identification, item, true);
 
         switch (item.SubCategoryId)
         {
@@ -498,7 +498,7 @@ public static class PlayerTraps
             return;
         }
 
-        PlayerStatLogic.StatRandomDecrease(w.Py, PlayerConfig.Attr.Str);
+        PlayerStatLogic.StatRandomDecrease(w.Py, PlayerConfig.Attr.Str, w.Print);
 
         PlayerCore.TakesHit(w, DiceRoller.Roll(new Model.Generated.Dice(1, 4)), "a poison needle");
 

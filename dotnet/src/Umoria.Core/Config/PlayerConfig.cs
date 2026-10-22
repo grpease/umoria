@@ -41,6 +41,7 @@ public static class PlayerConfig
     public const ushort PlayerFoodFaint = 300; // Character begins fainting
     public const ushort PlayerFoodWeak = 1000; // Warn player that they're getting weak
     public const ushort PlayerFoodAlert = 2000; // Alert player that they're getting low on food
+    public const byte PlayerUseDeviceDifficulty = 3; // x> Harder devices x< Easier devices (M11)
     public const byte PlayerRegenFaint = 33; // Regen factor*2^16 when fainting
     public const byte PlayerRegenWeak = 98; // Regen factor*2^16 when weak
     public const byte PlayerRegenNormal = 197; // Regen factor*2^16 when full

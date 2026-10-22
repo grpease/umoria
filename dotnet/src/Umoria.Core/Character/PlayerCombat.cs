@@ -178,7 +178,7 @@ public static class PlayerCombat
     // src/player.cpp:387 playerAdjustBonusesForItem() -- the stat/search/
     // stealth/speed/infravision bonuses an item gives while worn (factor 1)
     // or taken off (factor -1). Reached here when the last missile is used
-    // up; wielding and taking off items are M11.
+    // up; wielding and taking off items (M11) are Items.InventoryCommands.
     public static void AdjustBonusesForItem(PlayerWorld w, in Inventory item, int factor)
     {
         var py = w.Py;
@@ -190,7 +190,7 @@ public static class PlayerCombat
             {
                 if (((1u << i) & item.Flags) != 0)
                 {
-                    PlayerStatLogic.StatBoost(py, i, amount);
+                    PlayerStatLogic.StatBoost(py, i, amount, w.Print);
                 }
             }
         }

@@ -233,19 +233,6 @@ public static class PlayerDoors
         }
     }
 
-    // src/game.cpp:224 getRandomDirection()
-    private static int GetRandomDirection()
-    {
-        int dir;
-
-        do
-        {
-            dir = RandomNumber.Next(9);
-        } while (dir == 5);
-
-        return dir;
-    }
-
     // src/player_bash.cpp:36 playerBash() -- bash open a door or chest -RAK-
     // Note: Affected by strength and weight of character. (See the
     // original's comment for the door misc_use conventions: positive
@@ -257,7 +244,7 @@ public static class PlayerDoors
         if (py.Flags.Confused > 0)
         {
             PlayerCore.PrintMessage(w, "You are confused.");
-            dir = GetRandomDirection();
+            dir = PlayerCore.GetRandomDirection();
         }
 
         var coord = py.Pos;

@@ -21,9 +21,8 @@ namespace Umoria.Core.Items;
 // so it is ported now rather than waiting for the rest of M11.
 //
 // damageMinusAC()'s "Your <armour> resists damage!" / "...is damaged!"
-// messages need itemDescription() for their text (M11); like M8's pickup
-// messages, they still zero game.command_count, but carry the bare catalog
-// name for now.
+// messages carry the real item description since M11 (bare catalog name
+// before that).
 public static class InventoryDamage
 {
     // src/inventory.cpp:21 inventoryDestroyItem() -- destroy an item in the
@@ -250,20 +249,19 @@ public static class InventoryDamage
         var itemId = items[RandomNumber.Next(items.Count) - 1];
         ref var item = ref py.Inventory[itemId];
 
-        // (itemDescription() -- M11; see the class comment)
-        var description = DataTreasureData.GameObjects[item.Id].Name;
+        var description = ItemDescription.Describe(w.Identification, item, false);
 
         if ((item.Flags & typDam) != 0)
         {
             minus = true;
 
-            PlayerCore.PrintMessage(w, $"Your {description} resists damage!");
+            PlayerCore.PrintMessage(w, Helpers.Truncate($"Your {description} resists damage!", Helpers.MoriaObjDescSize));
         }
         else if (item.Ac + item.ToAc > 0)
         {
             minus = true;
 
-            PlayerCore.PrintMessage(w, $"Your {description} is damaged!");
+            PlayerCore.PrintMessage(w, Helpers.Truncate($"Your {description} is damaged!", Helpers.MoriaObjDescSize));
 
             item.ToAc--;
             PlayerBonuses.RecalculateBonuses(py);

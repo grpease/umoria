@@ -13,10 +13,11 @@ namespace Umoria.Core.Character;
 // adjustment. displayCharacterStats() (after a stat change) is display
 // only.
 //
-// SetAndUseStat() on INT/WIS reaches PlayerSpells' allowance/mana updates,
-// whose messages are still the display-only kind (see
-// ScreenRendering.PrintMessage) -- not an issue for M8's callers (traps
-// only drain STR and CON), but M10/M11's potions and spells will need it.
+// SetAndUseStat() on INT/WIS reaches PlayerSpells' allowance update, whose
+// messages zero game.command_count like any printMessage(): every
+// stat-changing entry point takes an optional message sink for that, which
+// in-game callers set to PlayerWorld.Print (M11 -- before that they were
+// display only, which no trace could see: none had a count pending).
 public static class PlayerStatLogic
 {
     // src/player_stats.cpp:11 playerInitializeBaseExperienceLevels()
@@ -144,7 +145,7 @@ public static class PlayerStatLogic
 
     // src/player_stats.cpp:261 playerSetAndUseStat() -- set the value of the
     // stat which is actually used. -CJS-
-    public static void SetAndUseStat(Player py, int stat)
+    public static void SetAndUseStat(Player py, int stat, Action<string>? printMessage = null)
     {
         py.Stats.Used[stat] = ModifyStat(py, stat, py.Stats.Modified[stat]);
 
@@ -161,12 +162,12 @@ public static class PlayerStatLogic
         }
         else if (stat == PlayerConfig.Attr.Int && spellType == SpellConfig.SpellTypeMage)
         {
-            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Int);
+            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Int, printMessage);
             PlayerSpells.GainMana(py, PlayerConfig.Attr.Int);
         }
         else if (stat == PlayerConfig.Attr.Wis && spellType == SpellConfig.SpellTypePriest)
         {
-            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis);
+            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis, printMessage);
             PlayerSpells.GainMana(py, PlayerConfig.Attr.Wis);
         }
         else if (stat == PlayerConfig.Attr.Con)
@@ -174,20 +175,6 @@ public static class PlayerStatLogic
             CalculateHitPoints(py);
         }
     }
-
-    // src/data_tables.cpp:79 blows_table -- used to calculate the number
-    // of blows the player gets in combat (hand-copied, M8)
-    private static readonly byte[][] BlowsTable =
-    {
-        // STR/W:   9  18  67  107 117 118  : DEX
-        new byte[] { 1, 1, 1, 1, 1, 1 }, // <2
-        new byte[] { 1, 1, 1, 1, 2, 2 }, // <3
-        new byte[] { 1, 1, 1, 2, 2, 3 }, // <4
-        new byte[] { 1, 1, 2, 2, 3, 3 }, // <5
-        new byte[] { 1, 2, 2, 3, 3, 4 }, // <7
-        new byte[] { 1, 2, 2, 3, 4, 4 }, // <9
-        new byte[] { 2, 2, 3, 3, 4, 4 }, // >9
-    };
 
     // src/player_stats.cpp:58 playerAttackBlowsDexterity()
     private static int AttackBlowsDexterity(int dexterity)
@@ -231,7 +218,8 @@ public static class PlayerStatLogic
         var dexterity = AttackBlowsDexterity(py.Stats.Used[PlayerConfig.Attr.Dex]);
         var strength = AttackBlowsStrength(playerStrength, weight);
 
-        return BlowsTable[strength][dexterity];
+        // (src/data_tables.cpp blows_table)
+        return DataTablesData.BlowsTable[strength][dexterity];
     }
 
     // src/player_stats.cpp:142 playerStatAdjustmentCharisma() -- percent
@@ -270,7 +258,7 @@ public static class PlayerStatLogic
 
     // src/player_stats.cpp:283 playerStatRandomIncrease() -- increases a
     // stat by one randomized level -RAK-
-    public static bool StatRandomIncrease(Player py, int stat)
+    public static bool StatRandomIncrease(Player py, int stat, Action<string>? printMessage = null)
     {
         int newStat = py.Stats.Current[stat];
 
@@ -298,7 +286,7 @@ public static class PlayerStatLogic
             py.Stats.Max[stat] = (byte)newStat;
         }
 
-        SetAndUseStat(py, stat);
+        SetAndUseStat(py, stat, printMessage);
         // (displayCharacterStats() -- display)
 
         return true;
@@ -306,7 +294,7 @@ public static class PlayerStatLogic
 
     // src/player_stats.cpp:312 playerStatRandomDecrease() -- decreases a
     // stat by one randomized level -RAK-
-    public static bool StatRandomDecrease(Player py, int stat)
+    public static bool StatRandomDecrease(Player py, int stat, Action<string>? printMessage = null)
     {
         int newStat = py.Stats.Current[stat];
 
@@ -332,7 +320,7 @@ public static class PlayerStatLogic
 
         py.Stats.Current[stat] = (byte)newStat;
 
-        SetAndUseStat(py, stat);
+        SetAndUseStat(py, stat, printMessage);
         // (displayCharacterStats() -- display)
 
         return true;
@@ -340,7 +328,7 @@ public static class PlayerStatLogic
 
     // src/player_stats.cpp:339 playerStatRestore() -- restore a stat.
     // Return true only if this actually makes a difference.
-    public static bool StatRestore(Player py, int stat)
+    public static bool StatRestore(Player py, int stat, Action<string>? printMessage = null)
     {
         var newStat = py.Stats.Max[stat] - py.Stats.Current[stat];
 
@@ -351,7 +339,7 @@ public static class PlayerStatLogic
 
         py.Stats.Current[stat] = (byte)(py.Stats.Current[stat] + newStat);
 
-        SetAndUseStat(py, stat);
+        SetAndUseStat(py, stat, printMessage);
         // (displayCharacterStats() -- display)
 
         return true;
@@ -359,11 +347,11 @@ public static class PlayerStatLogic
 
     // src/player_stats.cpp:356 playerStatBoost() -- boost a stat
     // artificially (by wearing something).
-    public static void StatBoost(Player py, int stat, int amount)
+    public static void StatBoost(Player py, int stat, int amount, Action<string>? printMessage = null)
     {
         py.Stats.Modified[stat] = (short)(py.Stats.Modified[stat] + amount);
 
-        SetAndUseStat(py, stat);
+        SetAndUseStat(py, stat, printMessage);
 
         // can not call displayCharacterStats() here:
         //   might be in a store,

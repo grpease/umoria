@@ -62,14 +62,6 @@ public class PlayerActionsTraceTests
         PlayerTrace.AssertMatches(expected, actual, "scenario ");
     }
 
-    [Fact]
-    public void ItemDescription_CoversOnlyTheCatalogNameCategories()
-    {
-        Assert.Equal("a trap door.", ItemDescription.Describe(InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjTrapList + 3)));
-        Assert.Equal("the entrance to the General Store.", ItemDescription.Describe(InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjStoreDoor)));
-        Assert.Throws<NotSupportedException>(() => ItemDescription.Describe(InventoryCatalog.CopyFromCatalog(326)));
-    }
-
     // Same order and values as player_actions_dump.cpp's main().
     private static IEnumerable<Scenario> Scenarios()
     {

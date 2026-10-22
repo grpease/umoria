@@ -31,7 +31,7 @@ public static class PlayerSpells
     // spells_learnt is ever set, which nothing does (learnable spells are
     // masked to 0x7FFFFFFF), so it's unreachable; ported as-is rather than
     // "fixed", so a divergence would surface as an exception, not silently.
-    private static void EliminateKnownSpellsGreaterThanLevel(Player py, Spell[] spells, string magicType, int offset)
+    private static void EliminateKnownSpellsGreaterThanLevel(Player py, Spell[] spells, string magicType, int offset, Action<string> print)
     {
         uint mask = 0x80000000;
 
@@ -44,7 +44,7 @@ public static class PlayerSpells
                     py.Flags.SpellsLearnt &= ~mask;
                     py.Flags.SpellsForgotten |= mask;
 
-                    ScreenRendering.PrintMessage($"You have forgotten the {magicType} of {DataPlayerData.SpellNames[i + offset]}.");
+                    print($"You have forgotten the {magicType} of {DataPlayerData.SpellNames[i + offset]}.");
                 }
                 else
                 {
@@ -95,7 +95,7 @@ public static class PlayerSpells
 
     // src/player.cpp:1517 rememberForgottenSpells() -- remember forgotten
     // spells in the order that they were learned.
-    private static int RememberForgottenSpells(Player py, Spell[] spells, int allowedSpells, int newSpells, string magicType, int offset)
+    private static int RememberForgottenSpells(Player py, Spell[] spells, int allowedSpells, int newSpells, string magicType, int offset, Action<string> print)
     {
         for (var n = 0; py.Flags.SpellsForgotten != 0 && newSpells != 0 && n < allowedSpells && n < 32; n++)
         {
@@ -114,7 +114,7 @@ public static class PlayerSpells
                     py.Flags.SpellsForgotten &= ~mask;
                     py.Flags.SpellsLearnt |= mask;
 
-                    ScreenRendering.PrintMessage($"You have remembered the {magicType} of {DataPlayerData.SpellNames[orderId + offset]}.");
+                    print($"You have remembered the {magicType} of {DataPlayerData.SpellNames[orderId + offset]}.");
                 }
                 else
                 {
@@ -151,7 +151,7 @@ public static class PlayerSpells
 
     // src/player.cpp:1577 forgetSpells() -- forget spells in the opposite
     // order that they were learned. newSpells is always negative.
-    private static void ForgetSpells(Player py, int newSpells, string magicType, int offset)
+    private static void ForgetSpells(Player py, int newSpells, string magicType, int offset, Action<string> print)
     {
         for (var i = 31; newSpells != 0 && py.Flags.SpellsLearnt != 0; i--)
         {
@@ -166,7 +166,7 @@ public static class PlayerSpells
                 py.Flags.SpellsForgotten |= mask;
                 newSpells++;
 
-                ScreenRendering.PrintMessage($"You have forgotten the {magicType} of {DataPlayerData.SpellNames[orderId + offset]}.");
+                print($"You have forgotten the {magicType} of {DataPlayerData.SpellNames[orderId + offset]}.");
             }
         }
     }
@@ -174,13 +174,19 @@ public static class PlayerSpells
     // src/player.cpp:1606 playerCalculateAllowedSpellsCount() -- calculate
     // number of spells player should have, and learn/forget spells until that
     // number is met. -JEW-
-    public static void CalculateAllowedSpellsCount(Player py, int stat)
+    //
+    // Its messages go through printMessage(), which zeroes
+    // game.command_count; in-game callers pass PlayerWorld.Print for that
+    // (M11). Without one -- character creation, which has no command count
+    // yet -- they are display only.
+    public static void CalculateAllowedSpellsCount(Player py, int stat, Action<string>? printMessage = null)
     {
+        var print = printMessage ?? ScreenRendering.PrintMessage;
         var spells = DataPlayerData.MagicSpells[py.Misc.ClassId - 1];
         var (magicType, offset) = MagicTypeFor(stat);
 
         // check to see if know any spells greater than level, eliminate them
-        EliminateKnownSpellsGreaterThanLevel(py, spells, magicType, offset);
+        EliminateKnownSpellsGreaterThanLevel(py, spells, magicType, offset, print);
 
         // calc number of spells allowed
         var numAllowed = NumberOfSpellsAllowed(py, stat);
@@ -189,7 +195,7 @@ public static class PlayerSpells
 
         if (newSpells > 0)
         {
-            newSpells = RememberForgottenSpells(py, spells, numAllowed, newSpells, magicType, offset);
+            newSpells = RememberForgottenSpells(py, spells, numAllowed, newSpells, magicType, offset, print);
 
             // If `new_spells_to_learn` is still greater than zero
             if (newSpells > 0)
@@ -199,7 +205,7 @@ public static class PlayerSpells
         }
         else if (newSpells < 0)
         {
-            ForgetSpells(py, newSpells, magicType, offset);
+            ForgetSpells(py, newSpells, magicType, offset, print);
             newSpells = 0;
         }
 
@@ -207,7 +213,7 @@ public static class PlayerSpells
         {
             if (newSpells > 0 && py.Flags.NewSpellsToLearn == 0)
             {
-                ScreenRendering.PrintMessage($"You can learn some new {magicType}s now.");
+                print($"You can learn some new {magicType}s now.");
             }
 
             py.Flags.NewSpellsToLearn = (byte)newSpells;

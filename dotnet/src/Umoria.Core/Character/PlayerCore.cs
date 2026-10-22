@@ -1,3 +1,4 @@
+using Umoria.Core.Rng;
 using Umoria.Core.Config;
 using Umoria.Core.Data.Generated;
 using Umoria.Core.Dungeon;
@@ -103,6 +104,7 @@ public static class PlayerCore
     public static void PrintMessage(PlayerWorld w, string message)
     {
         w.Game.CommandCount = 0;
+        w.MessageLog?.Invoke(message);
         ScreenRendering.PrintMessage(message);
     }
 
@@ -272,12 +274,12 @@ public static class PlayerCore
 
         if (spellType == SpellConfig.SpellTypeMage)
         {
-            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Int);
+            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Int, w.Print);
             PlayerSpells.GainMana(py, PlayerConfig.Attr.Int);
         }
         else if (spellType == SpellConfig.SpellTypePriest)
         {
-            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis);
+            PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis, w.Print);
             PlayerSpells.GainMana(py, PlayerConfig.Attr.Wis);
         }
     }
@@ -329,6 +331,40 @@ public static class PlayerCore
         {
             f.Status |= PlayerConfig.Status.PyRepeat;
         }
+    }
+
+    // src/game.cpp:224 getRandomDirection() (moved here from PlayerDoors in
+    // M11: wands and thrown objects pick one too when confused)
+    public static int GetRandomDirection()
+    {
+        int dir;
+
+        do
+        {
+            dir = RandomNumber.Next(9);
+        } while (dir == 5);
+
+        return dir;
+    }
+
+    // src/ui.cpp:103 drawCavePanel() -- the game-state half of redrawing the
+    // whole screen (the blindness mushroom calls it). Through
+    // printCharacterStatsBlock() it reaches printCharacterMovementState()
+    // when searching or resting (PY_REPEAT upkeep) and always
+    // printCharacterStudyInstruction(), which clears PY_STUDY. The rest is
+    // display -- except that drawDungeonPanel() resolves every glyph through
+    // caveGetTileSymbol(), which draws RNG while hallucinating: still the
+    // open M14 decision. (M11)
+    public static void DrawCavePanel(PlayerWorld w)
+    {
+        var f = w.Py.Flags;
+
+        if ((f.Status & (PlayerConfig.Status.PySearch | PlayerConfig.Status.PyRest)) != 0)
+        {
+            UpdateMovementStateFlags(w);
+        }
+
+        f.Status &= ~PlayerConfig.Status.PyStudy;
     }
 
     // src/player_run.cpp:238 playerEndRunning() -- switch off the run flag

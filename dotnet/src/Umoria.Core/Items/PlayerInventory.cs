@@ -7,8 +7,8 @@ namespace Umoria.Core.Items;
 // inventoryCollectAllItemFlags (via playerRecalculateBonuses),
 // inventoryCarryItem (starting provisions), and the small stackable/cursed
 // predicates those use; M8 added inventoryCanCarryItemCount/CanCarryItem
-// (floor pickup). The rest of inventory.cpp (dropping, destroying,
-// elemental item damage) stays with M11.
+// (floor pickup). Destroying and elemental item damage are InventoryDamage
+// (M9); dropping and the equipment helpers are InventoryActions (M11).
 public static class PlayerInventory
 {
     // src/inventory.cpp:10 inventoryCollectAllItemFlags()

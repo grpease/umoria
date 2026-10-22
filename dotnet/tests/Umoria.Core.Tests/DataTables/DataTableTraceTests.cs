@@ -68,6 +68,16 @@ public class DataTableTraceTests
         AddNumeric2D(actual, "RaceGoldAdjustments", DataStoresData.RaceGoldAdjustments);
         AddNumeric2D(actual, "StoreChoices", DataStoresData.StoreChoices);
 
+        AddStringArray(actual, "Colors", DataTablesData.Colors);
+        AddStringArray(actual, "Mushrooms", DataTablesData.Mushrooms);
+        AddStringArray(actual, "Woods", DataTablesData.Woods);
+        AddStringArray(actual, "Metals", DataTablesData.Metals);
+        AddStringArray(actual, "Rocks", DataTablesData.Rocks);
+        AddStringArray(actual, "Amulets", DataTablesData.Amulets);
+        AddStringArray(actual, "Syllables", DataTablesData.Syllables);
+        AddNumeric2D(actual, "BlowsTable", DataTablesData.BlowsTable);
+        AddNumericArray(actual, "NormalTable", DataTablesData.NormalTable);
+
         AssertMatches(expected, actual);
     }
 
@@ -211,6 +221,14 @@ public class DataTableTraceTests
         for (var i = 0; i < values.Length; i++)
         {
             d[$"{table}.{i}.value"] = values[i] ?? "<null>";
+        }
+    }
+
+    private static void AddNumericArray<T>(Dictionary<string, string> d, string table, T[] values)
+    {
+        for (var i = 0; i < values.Length; i++)
+        {
+            d[$"{table}.{i}.value"] = values[i]!.ToString()!;
         }
     }
 

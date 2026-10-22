@@ -1,7 +1,10 @@
 using Umoria.Core.Character;
 using Umoria.Core.Config;
 using Umoria.Core.Dungeon;
+using Umoria.Core.Data.Generated;
+using Umoria.Core.Model;
 using Umoria.Core.Model.Generated;
+using Umoria.Core.Rng;
 
 namespace Umoria.Core.Items;
 
@@ -13,9 +16,9 @@ namespace Umoria.Core.Items;
 //
 // Starting inventory goes through itemIdentifyAsStoreBought() and
 // inventoryCarryItem()'s stacking check reads itemSetColorlessAsIdentified(),
-// so these had to land now. The rest of identification.cpp (item
-// descriptions, flavor-name shuffling in magicInitializeItemNames) stays
-// with M11.
+// so these had to land now. M11 added the rest of the object-knowledge
+// state: the shuffled flavour names (magicInitializeItemNames), tried
+// flags and inscriptions; the description text itself is ItemDescription.
 //
 // M10 added what the identify and recharge spells reach: itemIdentify()
 // (with itemAppendToInscription() and its shop/dungeon stack merging),
@@ -29,6 +32,94 @@ public sealed class ObjectIdentification
     private const int MaxMushrooms = 22;
 
     public byte[] ObjectsIdentified { get; } = new byte[ObjectIdentSize];
+
+    // MAX_TITLES (src/identification.h)
+    public const int MaxTitles = 45;
+
+    // The flavour names unidentified items are described with (M11). The
+    // original shuffles the data_tables.cpp arrays in place at game start
+    // (magicInitializeItemNames()), so they are per-game state here: copies
+    // of the generated tables, shuffled by MagicInitializeItemNames.
+    public string[] Colors { get; } = (string[])DataTablesData.Colors.Clone();
+    public string[] Mushrooms { get; } = (string[])DataTablesData.Mushrooms.Clone();
+    public string[] Woods { get; } = (string[])DataTablesData.Woods.Clone();
+    public string[] Metals { get; } = (string[])DataTablesData.Metals.Clone();
+    public string[] Rocks { get; } = (string[])DataTablesData.Rocks.Clone();
+    public string[] Amulets { get; } = (string[])DataTablesData.Amulets.Clone();
+
+    // src/identification.cpp:11 magic_item_titles[] -- the scroll titles,
+    // empty until MagicInitializeItemNames makes them up.
+    public string[] MagicItemTitles { get; } = Enumerable.Repeat("", MaxTitles).ToArray();
+
+    // src/identification.cpp:230 magicInitializeItemNames() -- initialize
+    // all Potions, wands, staves, scrolls, etc. Draws from the game RNG
+    // re-seeded with game.magic_seed (seedSet()), then restores the normal
+    // stream (seedResetToOldSeed()), so the names stay the same for a game
+    // across save/load. (M11)
+    public void MagicInitializeItemNames(uint magicSeed)
+    {
+        var oldSeed = MoriaRng.GetRandomSeed();
+        MoriaRng.SetRandomSeed(magicSeed);
+
+        // The first 3 entries for colors are fixed, (slime & apple juice, water)
+        for (var i = 3; i < Colors.Length; i++)
+        {
+            var id = RandomNumber.Next(Colors.Length - 3) + 2;
+            (Colors[i], Colors[id]) = (Colors[id], Colors[i]);
+        }
+
+        Shuffle(Woods);
+        Shuffle(Metals);
+        Shuffle(Rocks);
+        Shuffle(Amulets);
+        Shuffle(Mushrooms);
+
+        var syllables = DataTablesData.Syllables;
+
+        for (var t = 0; t < MagicItemTitles.Length; t++)
+        {
+            var title = "";
+            var k = RandomNumber.Next(2) + 1;
+
+            for (var i = 0; i < k; i++)
+            {
+                for (var s = RandomNumber.Next(2); s > 0; s--)
+                {
+                    title += syllables[RandomNumber.Next(syllables.Length) - 1];
+                }
+                if (i < k - 1)
+                {
+                    title += " ";
+                }
+            }
+
+            // (the original writes a terminator at [8] or [9]; past the end
+            // of a shorter title that changes nothing)
+            if (title.Length > 8 && title[8] == ' ')
+            {
+                title = title[..8];
+            }
+            else if (title.Length > 9)
+            {
+                title = title[..9];
+            }
+
+            MagicItemTitles[t] = title;
+        }
+
+        MoriaRng.SetRandomSeed(oldSeed);
+    }
+
+    // magicInitializeItemNames()' swap loop, shared by every table but the
+    // colors.
+    private static void Shuffle(string[] names)
+    {
+        for (var i = 0; i < names.Length; i++)
+        {
+            var id = RandomNumber.Next(names.Length) - 1;
+            (names[i], names[id]) = (names[id], names[i]);
+        }
+    }
 
     // src/identification.cpp:306 objectPositionOffset()
     public static short ObjectPositionOffset(int categoryId, int subCategoryId)
@@ -143,6 +234,41 @@ public sealed class ObjectIdentification
         }
 
         return IsObjectKnown(IdentIndex(offset, subCategoryId));
+    }
+
+    // src/identification.cpp:425 itemSetAsTried() -- somethings been
+    // sampled -CJS- (M11)
+    public void ItemSetAsTried(in Inventory item)
+    {
+        var offset = ObjectPositionOffset(item.CategoryId, item.SubCategoryId);
+        if (offset < 0)
+        {
+            return;
+        }
+
+        ObjectsIdentified[IdentIndex(offset, item.SubCategoryId)] |= IdentificationConfig.OdTried;
+    }
+
+    // src/identification.cpp:340 isObjectKnown()'s tried counterpart, read
+    // by itemDescription() (M11)
+    public bool IsObjectTried(int categoryId, int subCategoryId)
+    {
+        var offset = ObjectPositionOffset(categoryId, subCategoryId);
+        return offset >= 0 && (ObjectsIdentified[IdentIndex(offset, subCategoryId)] & IdentificationConfig.OdTried) != 0;
+    }
+
+    // src/identification.cpp:489 itemRemoveMagicNaming() -- if an object
+    // has lost magical properties, remove the appropriate portion of the
+    // name. -CJS- (M11)
+    public static void ItemRemoveMagicNaming(ref Inventory item)
+    {
+        item.SpecialNameId = (byte)SpecialNameIds.SnNull;
+    }
+
+    // src/identification.cpp:937 itemReplaceInscription() (M11)
+    public static void ItemReplaceInscription(ref Inventory item, string inscription)
+    {
+        item.Inscription = inscription;
     }
 
     // src/identification.cpp:389 spellItemRemoveIdentification() (M10)

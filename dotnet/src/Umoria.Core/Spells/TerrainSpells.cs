@@ -4,6 +4,7 @@ using Umoria.Core.Creatures;
 using Umoria.Core.Data.Generated;
 using Umoria.Core.Dice;
 using Umoria.Core.Dungeon;
+using Umoria.Core.Items;
 using Umoria.Core.Model;
 using Umoria.Core.Model.Generated;
 using Umoria.Core.Rng;
@@ -17,9 +18,8 @@ namespace Umoria.Core.Spells;
 // the destruction spell, glyph of warding and create food. Deferred from
 // M9 because only some of them hurt monsters, and only as a side effect.
 //
-// stone-to-mud's "The <object> turns into mud." uses the bare catalog name
-// until itemDescription() exists (M11), like M9's armour messages; it still
-// zeroes game.command_count.
+// stone-to-mud's "The <object> turns into mud." carries the real item
+// description since M11 (bare catalog name before that).
 public static class TerrainSpells
 {
     // src/spells.cpp:587 spellLightLineTouchesMonster() -- update monster
@@ -230,8 +230,8 @@ public static class TerrainSpells
                 {
                     turned = true;
 
-                    var description = DataTreasureData.GameObjects[w.Treasure[tile.TreasureId].Id].Name;
-                    PlayerCore.PrintMessage(w, $"The {description} turns into mud.");
+                    var description = ItemDescription.Describe(w.Identification, w.Treasure[tile.TreasureId], false);
+                    PlayerCore.PrintMessage(w, Helpers.Truncate($"The {description} turns into mud.", Helpers.MoriaObjDescSize));
                 }
 
                 if (w.Treasure[tile.TreasureId].CategoryId == TreasureCategory.TvRubble)

@@ -32,6 +32,9 @@
     <None Include="..\PlayerActionsTraces\**" LinkBase="PlayerActionsTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\MonsterCombatTraces\**" LinkBase="MonsterCombatTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\SpellCastingTraces\**" LinkBase="SpellCastingTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\ItemDescriptionTraces\**" LinkBase="ItemDescriptionTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\ItemUseTraces\**" LinkBase="ItemUseTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\tools\item_use_dump\item_use_scenarios.inc" Link="ItemUseTraces\item_use_scenarios.inc" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

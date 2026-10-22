@@ -64,26 +64,29 @@ public class SpellCastingTraceTests
     }
 
     // ---- setup bits (spell_casting_dump.cpp's SetupBits) ------------------
+    //
+    // These and the arena/setup/hash helpers below are internal because the
+    // M11 item-use trace reuses them, as item_use_dump.cpp copies them.
 
-    private const int STough = 1;
-    private const int SDark = 2;
-    private const int SBlind = 4;
-    private const int SHurt = 8;
-    private const int SBooks = 16;
-    private const int SLearn = 32;
-    private const int SMana = 64;
-    private const int SStaff = 128;
-    private const int STraps = 256;
-    private const int SCursed = 512;
-    private const int SAiling = 1024;
-    private const int SDrained = 2048;
-    private const int SSustain = 4096;
-    private const int SRubble = 8192;
-    private const int SWeapon = 16384;
-    private const int SItems = 32768;
-    private const int SNearItems = 65536;
-    private const int SUnknown = 131072;
-    private const int SRubbleRow = 262144;
+    internal const int STough = 1;
+    internal const int SDark = 2;
+    internal const int SBlind = 4;
+    internal const int SHurt = 8;
+    internal const int SBooks = 16;
+    internal const int SLearn = 32;
+    internal const int SMana = 64;
+    internal const int SStaff = 128;
+    internal const int STraps = 256;
+    internal const int SCursed = 512;
+    internal const int SAiling = 1024;
+    internal const int SDrained = 2048;
+    internal const int SSustain = 4096;
+    internal const int SRubble = 8192;
+    internal const int SWeapon = 16384;
+    internal const int SItems = 32768;
+    internal const int SNearItems = 65536;
+    internal const int SUnknown = 131072;
+    internal const int SRubbleRow = 262144;
 
     private const int T = STough;
     private const int Caster = STough | SBooks | SLearn | SMana;
@@ -227,7 +230,7 @@ public class SpellCastingTraceTests
         }
     }
 
-    private static int PlaceObject(PlayerWorld w, Coord coord, int objectId)
+    internal static int PlaceObject(PlayerWorld w, Coord coord, int objectId)
     {
         var id = w.Treasure.Popt();
         w.Dg.Floor[coord.Y, coord.X].TreasureId = (byte)id;
@@ -242,7 +245,7 @@ public class SpellCastingTraceTests
         w.Dg.Floor[coord.Y, coord.X].FeatureId = objectId == DungeonGenerationConfig.Objects.ObjOpenDoor ? TileConstants.TileCorrFloor : TileConstants.TileBlockedFloor;
     }
 
-    private static PlayerWorld BuildArena(Player py, ObjectIdentification identification, int depth)
+    internal static PlayerWorld BuildArena(Player py, ObjectIdentification identification, int depth)
     {
         var dg = new Model.Generated.Dungeon
         {
@@ -304,7 +307,7 @@ public class SpellCastingTraceTests
         py.EquipmentCount++;
     }
 
-    private static void CarryObject(PlayerWorld w, int objectId, int count, short miscUse)
+    internal static void CarryObject(PlayerWorld w, int objectId, int count, short miscUse)
     {
         var item = InventoryCatalog.CopyFromCatalog(objectId) with { ItemsCount = (byte)count };
         if (miscUse >= 0)
@@ -314,7 +317,7 @@ public class SpellCastingTraceTests
         PlayerInventory.CarryItem(w.Py, w.Identification, item);
     }
 
-    private static void Setup(PlayerWorld w, int param, int exp)
+    internal static void Setup(PlayerWorld w, int param, int exp)
     {
         var py = w.Py;
         var f = py.Flags;
@@ -494,7 +497,7 @@ public class SpellCastingTraceTests
         }
     }
 
-    private static void PlaceMonsters(PlayerWorld w, string spec)
+    internal static void PlaceMonsters(PlayerWorld w, string spec)
     {
         foreach (var token in spec.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -544,9 +547,9 @@ public class SpellCastingTraceTests
 
     // ---- scripted input (mirrors the stub's key script) ---------------------
 
-    private const char Escape = (char)27;
+    internal const char Escape = (char)27;
 
-    private sealed class KeyScript
+    internal sealed class KeyScript
     {
         private string _keys = "";
         private int _pos;
@@ -572,7 +575,7 @@ public class SpellCastingTraceTests
         }
     }
 
-    private static void HookInput(PlayerWorld w, KeyScript keys, Func<bool> confirm)
+    internal static void HookInput(PlayerWorld w, KeyScript keys, Func<bool> confirm)
     {
         w.ReadCommand = _ =>
         {
@@ -876,16 +879,16 @@ public class SpellCastingTraceTests
 
     // ---- dump (mirrors dumpStep() and the hashes) -------------------------
 
-    private static uint Mix(uint h, int v)
+    internal static uint Mix(uint h, int v)
     {
         h ^= unchecked((uint)v);
         h *= 16777619u;
         return h;
     }
 
-    private const uint FnvOffset = 2166136261u;
+    internal const uint FnvOffset = 2166136261u;
 
-    private static uint HashFloor(Model.Generated.Dungeon dg)
+    internal static uint HashFloor(Model.Generated.Dungeon dg)
     {
         var h = FnvOffset;
         for (var y = 0; y < DungeonConstants.MaxHeight; y++)
@@ -924,7 +927,7 @@ public class SpellCastingTraceTests
         return h;
     }
 
-    private static uint HashTreasure(TreasureList treasure)
+    internal static uint HashTreasure(TreasureList treasure)
     {
         var h = FnvOffset;
         for (var i = TreasureConfig.MinTreasureListId; i < treasure.CurrentId; i++)
@@ -934,7 +937,7 @@ public class SpellCastingTraceTests
         return h;
     }
 
-    private static uint HashInventory(Player py)
+    internal static uint HashInventory(Player py)
     {
         var h = FnvOffset;
         foreach (var item in py.Inventory)
@@ -944,7 +947,7 @@ public class SpellCastingTraceTests
         return h;
     }
 
-    private static uint HashRecall(Recall[] recall)
+    internal static uint HashRecall(Recall[] recall)
     {
         var h = FnvOffset;
         foreach (var memory in recall)

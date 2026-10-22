@@ -17,9 +17,8 @@ namespace Umoria.Core.Spells;
 //
 // M10 added the player self-effects: hit point change, the six stat-loss
 // spells, slow poison, enchant, remove curse, restore levels, identify and
-// recharge. Identify's "<slot> <description>" message uses the bare catalog
-// name until itemDescription() exists (M11); it still zeroes
-// game.command_count.
+// recharge. Identify's "<slot> <description>" message carries the real item
+// description since M11 (bare catalog name before that).
 public static class SpellEffects
 {
     // src/spells.cpp:432 spellAggravateMonsters() -- get all the monsters on
@@ -174,12 +173,12 @@ public static class SpellEffects
 
             if (spellType == SpellConfig.SpellTypeMage)
             {
-                PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Int);
+                PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Int, w.Print);
                 PlayerSpells.GainMana(py, PlayerConfig.Attr.Int);
             }
             else if (spellType == SpellConfig.SpellTypePriest)
             {
-                PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis);
+                PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis, w.Print);
                 PlayerSpells.GainMana(py, PlayerConfig.Attr.Wis);
             }
             // (printCharacterLevel(), printCharacterTitle() -- display)
@@ -223,7 +222,7 @@ public static class SpellEffects
     {
         if (!sustained)
         {
-            PlayerStatLogic.StatRandomDecrease(w.Py, stat);
+            PlayerStatLogic.StatRandomDecrease(w.Py, stat, w.Print);
             PlayerCore.PrintMessage(w, lost);
         }
         else
@@ -366,18 +365,16 @@ public static class SpellEffects
         ref var item = ref py.Inventory[itemId];
         w.Identification.SpellItemIdentifyAndRemoveRandomInscription(ref item);
 
-        var description = DataTreasureData.GameObjects[item.Id].Name;
+        var description = ItemDescription.Describe(w.Identification, item, true);
 
         if (itemId >= PlayerConfig.Equipment.Wield)
         {
             PlayerBonuses.RecalculateBonuses(py);
-            // (the "<slot>: " prefix, playerItemWearingDescription(), is
-            // display text -- M11/M14)
-            PlayerCore.PrintMessage(w, description);
+            PlayerCore.PrintMessage(w, Helpers.Truncate($"{ItemDescription.PlayerItemWearingDescription(itemId)}: {description}", Helpers.MoriaObjDescSize));
         }
         else
         {
-            PlayerCore.PrintMessage(w, $"{(char)(itemId + 97)} {description}");
+            PlayerCore.PrintMessage(w, Helpers.Truncate($"{(char)(itemId + 97)} {description}", Helpers.MoriaObjDescSize));
         }
 
         return true;

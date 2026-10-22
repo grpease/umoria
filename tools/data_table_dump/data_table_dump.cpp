@@ -295,6 +295,17 @@ int main(int argc, char *argv[]) {
     dump_string_array("SpeechSorry", speech_sorry);
     dump_scalar_2d_array("RaceGoldAdjustments", race_gold_adjustments);
     dump_scalar_2d_array("StoreChoices", store_choices);
+    // data_tables.cpp (added M11: the flavour names magicInitializeItemNames()
+    // shuffles, unshuffled here since this harness never calls it)
+    dump_string_array("Colors", colors);
+    dump_string_array("Mushrooms", mushrooms);
+    dump_string_array("Woods", woods);
+    dump_string_array("Metals", metals);
+    dump_string_array("Rocks", rocks);
+    dump_string_array("Amulets", amulets);
+    dump_string_array("Syllables", syllables);
+    dump_scalar_2d_array("BlowsTable", blows_table);
+    dump_scalar_array("NormalTable", normal_table);
 
     if (out != stdout) {
         std::fclose(out);

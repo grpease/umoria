@@ -331,6 +331,22 @@ set_target_properties(item_magic_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${bui
 
 
 #
+# Item description dump harness: verifies the .NET migration's port of
+# magicInitializeItemNames() and itemDescription() (M11, Umoria.Core.Items.
+# ObjectIdentification / ItemDescription) against the real compiled C++ game.
+# Same build pattern as item_magic_dump. See
+# tools/item_description_dump/item_description_dump.cpp for details.
+#
+set(item_description_dump_source_files ${source_files})
+list(REMOVE_ITEM item_description_dump_source_files ${source_dir}/main.cpp)
+list(APPEND item_description_dump_source_files tools/item_description_dump/item_description_dump.cpp)
+
+add_executable(item_description_dump ${item_description_dump_source_files})
+target_link_libraries(item_description_dump ${CURSES_LIBRARIES})
+set_target_properties(item_description_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
 # LOS matrix dump harness: verifies the .NET migration's port of los()
 # (M5, Umoria.Core.Dungeon.Los) against the real compiled C++ game. See
 # tools/los_dump/los_dump.cpp for details.
@@ -441,3 +457,22 @@ list(APPEND spell_casting_dump_source_files
 add_executable(spell_casting_dump ${spell_casting_dump_source_files})
 target_link_libraries(spell_casting_dump ${CURSES_LIBRARIES})
 set_target_properties(spell_casting_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
+# Item-use dump harness: verifies the .NET migration's port of the item
+# commands (M11 -- eating, quaffing, reading, staffs, wands, throwing, the
+# inventory commands) against the real compiled C++ game. Same build pattern
+# as spell_casting_dump. See tools/item_use_dump/item_use_dump.cpp.
+#
+set(item_use_dump_source_files ${source_files})
+list(REMOVE_ITEM item_use_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
+list(APPEND item_use_dump_source_files
+        tools/item_use_dump/item_use_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(item_use_dump ${item_use_dump_source_files})
+target_link_libraries(item_use_dump ${CURSES_LIBRARIES})
+set_target_properties(item_use_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

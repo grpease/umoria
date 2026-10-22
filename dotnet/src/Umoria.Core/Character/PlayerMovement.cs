@@ -17,10 +17,8 @@ namespace Umoria.Core.Character;
 // Not ported here:
 //   - (Bump attacks, deferred in M8, are PlayerCombat.AttackMonster since
 //     M9.)
-//   - Message and prompt text that needs itemDescription() for a real item
-//     (pickup, "You have found <trap>"): M11. Those messages still zero
-//     game.command_count via PlayerCore.PrintMessage; only their text is
-//     missing.
+//   - (The pickup and "You have found <trap>" text, which needed the full
+//     itemDescription(), is real since M11.)
 public static class PlayerMovement
 {
     // src/player.cpp:49 playerMovePosition() -- given direction "dir",
@@ -146,7 +144,7 @@ public static class PlayerMovement
                 if (item.CategoryId == TreasureCategory.TvInvisTrap)
                 {
                     // Trap on floor?
-                    PlayerCore.PrintMessage(w, "You have found " + ItemDescription.Describe(item));
+                    PlayerCore.PrintMessage(w, Helpers.Truncate("You have found " + ItemDescription.Describe(w.Identification, item, true), Helpers.MoriaObjDescSize));
 
                     w.Objects.TrapChangeVisibility(spot);
                     PlayerCore.EndRunning(w);
@@ -263,7 +261,7 @@ public static class PlayerMovement
         {
             py.Misc.Au += item.Cost;
 
-            var msg = $"You have found {item.Cost} gold pieces worth of {ItemDescription.Describe(item)}";
+            var msg = Helpers.Truncate($"You have found {item.Cost} gold pieces worth of {ItemDescription.Describe(w.Identification, item, true)}", Helpers.MoriaObjDescSize);
 
             // (printCharacterGoldValue() -- display)
             w.Objects.DeleteObject(coord);
@@ -277,17 +275,16 @@ public static class PlayerMovement
         if (PlayerInventory.CanCarryItemCount(py, w.Identification, item))
         {
             // Okay, pick it up
-            // (prompt text: itemDescription() is M11, so the item name is
-            // missing from it)
             if (pickup && w.Game.Options.PromptToPickup)
             {
-                pickup = PlayerCore.GetInputConfirmation(w, "Pick up the item?");
+                // change the period to a question mark
+                pickup = PlayerCore.GetInputConfirmation(w, "Pick up " + ItemDescription.Describe(w.Identification, item, true)[..^1] + "?");
             }
 
             // Check to see if it will change the players speed.
             if (pickup && !PlayerInventory.CanCarryItem(py, item))
             {
-                pickup = PlayerCore.GetInputConfirmation(w, "Exceed your weight limit to pick up the item?");
+                pickup = PlayerCore.GetInputConfirmation(w, "Exceed your weight limit to pick up " + ItemDescription.Describe(w.Identification, item, true)[..^1] + "?");
             }
 
             // Attempt to pick up an object.
@@ -295,13 +292,13 @@ public static class PlayerMovement
             {
                 var locn = PlayerInventory.CarryItem(py, w.Identification, item);
 
-                PlayerCore.PrintMessage(w, $"You have the item ({(char)(locn + 'a')})");
+                PlayerCore.PrintMessage(w, Helpers.Truncate($"You have {ItemDescription.Describe(w.Identification, py.Inventory[locn], true)} ({(char)(locn + 'a')})", Helpers.MoriaObjDescSize));
                 w.Objects.DeleteObject(coord);
             }
         }
         else
         {
-            PlayerCore.PrintMessage(w, "You can't carry the item");
+            PlayerCore.PrintMessage(w, Helpers.Truncate($"You can't carry {ItemDescription.Describe(w.Identification, item, true)}", Helpers.MoriaObjDescSize));
         }
     }
 

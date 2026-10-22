@@ -32,7 +32,7 @@ generation (initially feared otherwise).
 - [x] M8 — Player movement/action subsystem
 - [x] M9 — Monster AI & melee combat, together with damage-spell primitives
 - [x] M10 — Remaining spell effects + casting layer
-- [ ] M11 — Items/inventory/identification
+- [x] M11 — Items/inventory/identification
 - [ ] M12 — Save/load (JSON)
 - [ ] M13 — Stores/economy
 - [ ] M14 — Full UI *(partial: minimal walkable Terminal.Gui loop exists from the POC; inventory/character/store/message-log screens not started)*
@@ -472,25 +472,77 @@ switches are unreachable.
     getDirectionWithMemory(); the '*' spell list display; hallucination (as before).
   - To M15: the study and cast commands' key dispatch, and setting game.use_last_direction for counted commands.
 
-### M11 — Items/inventory/identification                                                                            
-																											  
-- Scope: inventory.cpp, identification.cpp (956), scrolls.cpp, staves.cpp — wielding, using, item-use dispatch. 
-- Size: L (~2000+ lines combined), split by item category, each S-M.                                            
-- Depends on: M3, M10 (detection/self-effect spells), M9 (combat-adjacent item uses, e.g. staff of              
-teleport-other).                                                                                              
-- Verify: mixed — inventory bookkeeping (stacking, weight) is golden-traceable; anything printing flavor text   
-or prompting the player needs manual verification once minimal UI exists, so sequence part of this after M15  
-starts rather than strictly before it.                                                                        
-- From M8: Items.ItemDescription only covers the catalog-name categories (traps, gold, stairs, store entrances) and
-throws for the rest -- replace it with the full itemDescription() here; the pickup/search messages and pickup prompts
-in PlayerMovement are waiting on it for their text. inventoryDamageItem()/inventoryDestroyItem() unblock the fire,
-acid and corroding-gas traps (with M9). (M9 did that: inventoryDamageItem()/inventoryDestroyItem() were self-contained.)
-- From M9: damageMinusAC()'s armour messages carry the bare catalog name until itemDescription() exists;
-player_throw.cpp (thrown objects) kills through MonsterLife.TakeHit.
-- From M10: every spell an item casts now exists (Spells.*) -- the item-use dispatch only has to call them.
-itemIdentify() is already ported (ObjectIdentification.ItemIdentify, with the shop/dungeon stack merge); identify's,
-stone-to-mud's and genocide's messages are waiting on itemDescription() for their text.
-																											  
+### M11 — Items/inventory/identification
+
+- Scope (as built): the rest of identification.cpp -- magicInitializeItemNames() (the flavour-name shuffle and made-up
+scroll titles), the full itemDescription(), itemChargesRemainingDescription()/itemTypeRemainingCountDescription(),
+itemSetAsTried(), itemRemoveMagicNaming(), itemInscribe()/itemReplaceInscription() -- plus every item-use command:
+player_eat.cpp, player_quaff.cpp, scrolls.cpp, staves.cpp (staffs and wands), player_throw.cpp, inventoryDropItem() and
+player.cpp's equipment helpers (playerTakeOff(), the worn-item predicates), and ui_inventory.cpp's command logic
+(inventoryExecuteCommand(): show inventory/equipment, wear/wield, take off, drop, exchange weapons). Done --
+Umoria.Core.Items.ItemDescription / ObjectIdentification / PlayerEat / PlayerQuaff / Scrolls / Staves / PlayerThrow /
+InventoryActions / InventoryCommands / ItemUse.
+- Data: the flavour-name tables (colors, mushrooms, woods, metals, rocks, amulets, syllables) live in data_tables.cpp,
+which M0's libclang extractor didn't cover -- the POC's regex-era DataTables.cs (normal_table only) did. The extractor
+now takes data_tables.cpp as a seventh file (DataTablesData.cs: the seven name tables, blows_table, normal_table), the
+old DataTables.cs is gone, and M8's hand-copied blows_table is replaced by the generated one. data_table_dump dumps the
+new tables (615 more fields), byte-for-byte. The shuffle mutates the tables in place in C++, so the port keeps
+per-game copies on ObjectIdentification.
+- Real call graph (read, not assumed):
+  - ui_inventory.cpp is not just UI: wearing, taking off, dropping and exchanging live there, mixed with the screen state
+    the command loop branches on (game.screen's current screen and wear range, game.doing_inventory_command) and with
+    prompts that carry state (every key read zeroes command_count). Ported whole except the drawing (item lists, help,
+    headers, the screen's left/bottom positions); keys come through PlayerCore.GetCommand, as M10's prompts do. New
+    GameState fields: MagicSeed, DoingInventoryCommand, Screen (InventoryScreen), ScreenHasChanged.
+  - drawCavePanel() (the blindness mushroom) is not pure display: printCharacterStatsBlock() reaches
+    printCharacterMovementState() (PY_REPEAT upkeep, when searching/resting) and printCharacterStudyInstruction()
+    (clears PY_STUDY) -- PlayerCore.DrawCavePanel. printCharacterHungerStatus() and printCharacterCurrentMana() are pure
+    display.
+  - Found while wiring messages: M6's PlayerSpells allowance update printed through the world-less
+    ScreenRendering.PrintMessage, so "You can learn some new spells now." and the forget/remember messages didn't zero
+    command_count -- reachable in play from INT/WIS potions and level gain. Fixed by threading an optional message sink
+    through PlayerSpells.CalculateAllowedSpellsCount and the PlayerStatLogic stat-change family; in-game callers pass the
+    new PlayerWorld.Print. (No earlier trace could see it: none had a command count pending.)
+  - getInputConfirmationWithAbort() and getStringInput() read through getKeyInput() too, so they zero command_count;
+    the stub now does that, and their answers come from two new hooks (PlayerWorld.ConfirmWithAbort, ReadString).
+  - Quirks kept as written: itemDescription()'s digging-tool damage prints sides twice ("(%dd%d)", sides, sides);
+    inventoryItemIsCursedMessage() says "wielding" only for the head slot; scrollRead() tests TV_SCROLL2 through a
+    pointer to the slot first chosen even after identify's merge moves the scroll; scroll/staff summon loops re-roll
+    randomNumber() on every pass of the loop test; inventoryItemIdOfCursedEquipment() checks hands/head in a different
+    order for its random pick than for the cursed one; the restore mushrooms only ever set `identified`, never clear it.
+  - Old messages now carry their real text: M8's pickup / "You have found" / gold, M9's armour damage, M10's identify
+    (with playerItemWearingDescription() for worn items) and stone-to-mud.
+- Verify -- two new harnesses, zero changes to src/:
+  - tools/item_description_dump (M3's direct pattern): for three magic seeds (cumulatively, as the shuffle works in
+    place), the shuffled tables and titles, then every catalog row described in 19 states (plain, no-prefix, none, five,
+    tried, store-bought, made magical at level 40, known plusses, known kind, inscribed, magik/empty/damned, the
+    SHOW_HIT_DAM / NO_SHOW_P1 / SHOW_P1 overrides). 24,570 lines, byte-for-byte on the first run.
+  - tools/item_use_dump (M10's pattern, arena/setup/hashes reused; the C# side reuses SpellCastingTraceTests' helpers,
+    now internal): the stub gained an opt-in message log, so every printMessage() text is compared, plus a line of
+    item/screen state and an objects_identified hash per step, and every carried item's description at the end. The
+    scenario list is one file, tools/item_use_dump/item_use_scenarios.inc, #included by the C++ and parsed by the C# test,
+    so the two can't drift. 60 scenarios / ~19.8k lines: every food, potion, scroll, staff and wand kind; refusals (blind,
+    dark, confused, empty pack, none of the kind, <ESCAPE> at each prompt); device failures and empty charges;
+    identification by use, "tried" marks, identify's shop/dungeon merge; enchant/curse with and without equipment;
+    throwing with and without the matching launcher, unlit targets, kills, misses into walls; wear/replace, the ring-hand
+    prompt (bell, L/R verify), upper-case verify, cursed equipment, heavy weapons, exchange, drop one/all/abort, throw-off
+    via '/', full pack, inscriptions and inscription-digit selection, the screen keys (i, e, ?, *). Byte-for-byte on the
+    first run; three unreached branches (identify merge, restore mana, "nothing to wear") were then scripted and also
+    matched. Every older baseline regenerates byte-identical with the stub changes.
+- Not covered: "You can't carry it.  Drop it?" in take-off is unreachable (a full pack returns earlier unless an inventory
+  command is being re-entered -- M15); hallucination stays excluded (eating the mushroom ends its scenario).
+- Defer:
+  - To M12: game.magic_seed, objects_identified[] and inscriptions are save-file state (the flavour names are re-derived
+    from the seed, not saved).
+  - To M13: inventoryTakeOneItem() (only the store's buy/sell use it).
+  - To M14: drawing the inventory/equipment/help screens and their positions; screen_has_changed (set by the terminal
+    layer and monster visibility changes); the equipment-menu half of inventoryGetInputForItemId() (still); hallucination
+    (drawCavePanel()'s caveGetTileSymbol() RNG, as before).
+  - To M15: dispatching the item commands; re-entering a left-open inventory command at the start of a turn
+    (doing_inventory_command and the "Continuing with inventory command?" prompt); calling
+    ObjectIdentification.MagicInitializeItemNames(game.magic_seed) after character creation, as startMoria() does
+    (seedsInitialize() isn't ported yet).
+
 ### M12 — Save/load (JSON)                                                                                          
 																											  
 - Scope: new JSON-based format per the earlier compatibility-breaking decision (not porting game_save.cpp's XOR 
@@ -500,7 +552,10 @@ flexible on exact timing.
 - Verify: round-trip test (serialize, deserialize, assert struct equality) — no C++ baseline needed since the   
 format is intentionally new.                                                                                  
 - Defer: original save-file compatibility, by prior decision.                                                   
-																											  
+																											
+- From M11: game.magic_seed, objects_identified[] and item inscriptions must be saved; the flavour names are
+re-derived from the seed (ObjectIdentification.MagicInitializeItemNames), not saved.
+
 ### M13 — Stores/economy                                                                                            
 																											  
 - Scope: store.cpp (1202), store_inventory.cpp (374).                                                           
@@ -512,7 +567,9 @@ arithmetic, unit-testable without RNG.
 mid-dungeon-turn before finalizing the harness design.                                                        
 - From M8: stepping onto a town store entrance (PlayerTraps.StepsOnTrap, sub_category 101-106) throws until
 storeEnter() exists.
-																											  
+																											
+- From M11: inventoryTakeOneItem() (store buy/sell only) is not ported; item descriptions and identification are.
+
 ### M14 — Full UI                                                                                                   
 																											  
 - Scope: replace the minimal Terminal.Gui loop with inventory screen, character sheet, store screens, message   
@@ -527,7 +584,10 @@ logic underneath can still be unit-tested.
 rendered tile -- see M7's Defer list. Settle it before (or with) the dungeon view.
 - From M8: the hallucination decision now also covers movement -- sub1/sub3MoveLight redraw through
 caveGetTileSymbol() on every step (running's own glyph lookups are already exact, Dungeon.TileSymbol).
-																											  
+																											
+- From M11: the inventory/equipment/help screens are game-state-complete (Items.InventoryCommands tracks
+game.screen's screen id and wear range); only their drawing and screen_has_changed are left.
+
 ### M15 — Main loop integration                                                                                     
 																											  
 - Scope: game_run.cpp's playDungeon/startMoria (the actual per-turn loop and command dispatch, once M7's        
@@ -545,7 +605,10 @@ running's find_count bookkeeping in playDungeon() -- is this milestone's glue.
 sets game.use_last_direction for counted commands.
 - From M9: the per-turn monster glue -- the compactMonsters() check when the list is nearly full, MON_CHANCE_OF_NEW
 new monsters, and skipping the command while paralysed or resting -- before updateMonsters(true).
-																											  
+																											
+- From M11: dispatch the item commands (eat, quaff, read, use, aim, throw, inventory, inscribe); re-enter
+game.doing_inventory_command at the start of a turn; call MagicInitializeItemNames(game.magic_seed) after creation.
+
 Out of scope for the whole roadmap: wizard.cpp (debug commands), recall.cpp (monster-memory text, could be      
 picked up opportunistically alongside M0 if desired), original binary save format.                              
 																											  

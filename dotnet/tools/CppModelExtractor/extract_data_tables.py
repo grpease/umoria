@@ -16,7 +16,7 @@ can't introduce a transcription bug the way hand-retyping (by a human or an
 LLM) could.
 
 Usage: python extract_data_tables.py <repo-root>
-Reads the six data_*.cpp files under <repo-root>/src and writes:
+Reads the seven data_*.cpp files under <repo-root>/src and writes:
   - dotnet/src/Umoria.Core/Model/Generated/<Struct>.cs   (one per row struct)
   - dotnet/src/Umoria.Core/Data/Generated/<File>Data.cs  (one per source file)
 """
@@ -56,6 +56,7 @@ DATA_FILES = [
     "data_recall.cpp",
     "data_store_owners.cpp",
     "data_stores.cpp",
+    "data_tables.cpp",
 ]
 
 # extern const globals whose definition (with its literal value) lives in a

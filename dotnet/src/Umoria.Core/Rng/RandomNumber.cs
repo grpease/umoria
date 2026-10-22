@@ -40,7 +40,7 @@ public static class RandomNumber
 
         // binary search normal_table to get the index that matches tmp;
         // this takes up to 8 iterations.
-        var table = DataTables.NormalTable;
+        var table = DataTablesData.NormalTable;
         var low = 0;
         var index = table.Length >> 1;
         var high = table.Length;

@@ -42,7 +42,8 @@ public sealed class PlayerWorld
         Identification = identification ?? new ObjectIdentification();
         CreatureRecall = creatureRecall ?? Recall.CreateTable();
 
-        monsters.PrintMessage = message => PlayerCore.PrintMessage(this, message);
+        Print = message => PlayerCore.PrintMessage(this, message);
+        monsters.PrintMessage = Print;
     }
 
     public Player Py { get; }
@@ -52,6 +53,10 @@ public sealed class PlayerWorld
     public TreasureList Treasure { get; }
 
     public ObjectPlacement Objects { get; }
+
+    // PlayerCore.PrintMessage bound to this world, for code that only takes
+    // a message sink (M11)
+    public Action<string> Print { get; }
     public ObjectIdentification Identification { get; }
 
     // src/recall.h creature_recall[] -- monster memories. -CJS- (M9)
@@ -77,6 +82,22 @@ public sealed class PlayerWorld
     // caller sees only the chosen slot. Read it through
     // PlayerCore.GetItemId. The default escapes. (M10)
     public Func<string, int, int, int?> SelectItem { get; set; } = (_, _, _) => null;
+
+    // src/ui_io.cpp getInputConfirmationWithAbort() -- yes (1), no (0) or
+    // <ESCAPE> (-1); the drop command's "Drop all ...?" prompt. The default
+    // answers 0, like the headless C++ stub's. (M11)
+    public Func<string, int> ConfirmWithAbort { get; set; } = _ => 0;
+
+    // src/ui_io.cpp getStringInput() -- a line of text of at most
+    // `maxLength` characters, trailing blanks removed; null aborts. The
+    // inscribe command reads through it. (M11)
+    public Func<string, int, string?> ReadString { get; set; } = (_, _) => null;
+
+    // Every message printMessage() is given, in order -- the message line,
+    // -more- prompt and history are the UI's (M14), so by default this
+    // drops them; the M11 item-use trace records them to check the text.
+    // Fed by PlayerCore.PrintMessage. (M11)
+    public Action<string>? MessageLog { get; set; }
 }
 
 // src/player_run.cpp's static running state -CJS-

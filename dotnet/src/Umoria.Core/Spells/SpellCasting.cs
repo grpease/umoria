@@ -482,7 +482,7 @@ public static class SpellCasting
             if (RandomNumber.Next(3) == 1)
             {
                 PlayerCore.PrintMessage(w, "You have damaged your health!");
-                PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Con);
+                PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Con, w.Print);
             }
         }
         else
@@ -722,7 +722,7 @@ public static class SpellCasting
 
                 for (var i = PlayerConfig.Attr.Str; i <= PlayerConfig.Attr.Chr; i++)
                 {
-                    PlayerStatLogic.StatRestore(py, i);
+                    PlayerStatLogic.StatRestore(py, i, w.Print);
                 }
 
                 DamageSpells.DispelCreature(w, MonsterConfig.Defense.CdEvil, 4 * py.Misc.Level);

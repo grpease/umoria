@@ -22,6 +22,12 @@
 // its answer through getKeyInput(); the stub reproduces both (M10 -- before
 // that the comment claimed it but the code didn't, which no earlier harness
 // could notice: none of them ever has a nonzero count at a prompt).
+//
+// M11 added an opt-in message log (uiStubSetMessageLog) so the item-use
+// harness can compare message text, a scripted answer for
+// getInputConfirmationWithAbort(), and the command_count zeroing of that
+// prompt and getStringInput() (both read through getKeyInput() in the real
+// game).
 
 #include "../../src/headers.h"
 
@@ -29,6 +35,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "ui_io_stub.h"
 
@@ -38,6 +45,17 @@ bool panic_save = false;
 static std::string scripted_keys;
 static size_t scripted_key_pos = 0;
 static std::string scripted_name;
+static std::vector<std::string> *message_log = nullptr;
+
+void uiStubSetMessageLog(std::vector<std::string> *log) {
+    message_log = log;
+}
+
+static void logMessage(const char *msg) {
+    if (message_log != nullptr && msg != nullptr) {
+        message_log->push_back(msg);
+    }
+}
 
 void uiStubSetScript(const std::string &keys, const std::string &name) {
     scripted_keys = keys;
@@ -98,11 +116,14 @@ void printMessage(const char *msg) {
     if (msg != nullptr) {
         game.command_count = 0;
     }
+    logMessage(msg);
 }
 
 // The real one saves/restores game.command_count around printMessage(), so
 // its net effect on game state is nil.
-void printMessageNoCommandInterrupt(const std::string & /*msg*/) {}
+void printMessageNoCommandInterrupt(const std::string &msg) {
+    logMessage(msg.c_str());
+}
 
 char getKeyInput() {
     if (scripted_key_pos >= scripted_keys.size()) {
@@ -129,6 +150,7 @@ bool getMenuItemId(const std::string &prompt, char &command) {
 // Mirrors the real getStringInput()'s only side effect on game state:
 // copying the entered text (trailing blanks removed) into in_str.
 bool getStringInput(char *in_str, Coord_t /*coord*/, int slen) {
+    game.command_count = 0; // via getKeyInput()
     std::string name = scripted_name;
     while (!name.empty() && name.back() == ' ') {
         name.pop_back();
@@ -151,8 +173,15 @@ bool getInputConfirmation(const std::string & /*prompt*/) {
     return confirm_answer;
 }
 
+static int confirm_with_abort_answer = 0;
+
+void uiStubSetConfirmWithAbortAnswer(int answer) {
+    confirm_with_abort_answer = answer;
+}
+
 int getInputConfirmationWithAbort(int /*column*/, const std::string & /*prompt*/) {
-    return 0;
+    game.command_count = 0; // via getKeyInput()
+    return confirm_with_abort_answer;
 }
 
 void waitForContinueKey(int /*line_number*/) {}

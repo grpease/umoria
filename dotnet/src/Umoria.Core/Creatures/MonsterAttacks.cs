@@ -255,7 +255,7 @@ public static class MonsterAttacks
                 else if (RandomNumber.Next(2) == 1)
                 {
                     PlayerCore.PrintMessage(w, "You feel weaker.");
-                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Str);
+                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Str, w.Print);
                 }
                 else
                 {
@@ -411,7 +411,7 @@ public static class MonsterAttacks
                 else
                 {
                     PlayerCore.PrintMessage(w, "You feel more clumsy.");
-                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Dex);
+                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Dex, w.Print);
                 }
                 break;
             case 16: // Lose constitution
@@ -423,7 +423,7 @@ public static class MonsterAttacks
                 else
                 {
                     PlayerCore.PrintMessage(w, "Your health is damaged!");
-                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Con);
+                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Con, w.Print);
                 }
                 break;
             case 17: // Lose intelligence
@@ -435,7 +435,7 @@ public static class MonsterAttacks
                 }
                 else
                 {
-                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Int);
+                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Int, w.Print);
                 }
                 break;
             case 18: // Lose wisdom
@@ -447,7 +447,7 @@ public static class MonsterAttacks
                 else
                 {
                     PlayerCore.PrintMessage(w, "Your wisdom is drained.");
-                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Wis);
+                    PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Wis, w.Print);
                 }
                 break;
             case 19: // Lose experience
