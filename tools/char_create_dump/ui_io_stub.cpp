@@ -17,8 +17,11 @@
 // the message history and terminal bookkeeping (which no harness reads),
 // plus game.command_count -- printMessage() zeroes it for every non-null
 // message (cancelling a repeated command), which the stub reproduces since
-// the status-effects harness (M7) dumps it. getKeyInput() also zeroes it;
-// only character creation reads keys, and it never sets a count.
+// the status-effects harness (M7) dumps it. getKeyInput() also zeroes it
+// ("just to be safe -CJS-"), and so does getInputConfirmation(), which reads
+// its answer through getKeyInput(); the stub reproduces both (M10 -- before
+// that the comment claimed it but the code didn't, which no earlier harness
+// could notice: none of them ever has a nonzero count at a prompt).
 
 #include "../../src/headers.h"
 
@@ -44,6 +47,10 @@ void uiStubSetScript(const std::string &keys, const std::string &name) {
 
 bool uiStubScriptConsumed() {
     return scripted_key_pos == scripted_keys.size();
+}
+
+size_t uiStubKeysConsumed() {
+    return scripted_key_pos;
 }
 
 bool terminalInitialize() {
@@ -102,6 +109,7 @@ char getKeyInput() {
         std::fprintf(stderr, "ui_io_stub: getKeyInput() called with the key script exhausted\n");
         std::exit(2);
     }
+    game.command_count = 0; // Just to be safe -CJS-
     return scripted_keys[scripted_key_pos++];
 }
 
@@ -139,6 +147,7 @@ void uiStubSetConfirmAnswer(bool answer) {
 }
 
 bool getInputConfirmation(const std::string & /*prompt*/) {
+    game.command_count = 0; // via getKeyInput()
     return confirm_answer;
 }
 

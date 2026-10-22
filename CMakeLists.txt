@@ -422,3 +422,22 @@ list(APPEND monster_combat_dump_source_files
 add_executable(monster_combat_dump ${monster_combat_dump_source_files})
 target_link_libraries(monster_combat_dump ${CURSES_LIBRARIES})
 set_target_properties(monster_combat_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+#
+# Test-only target for the .NET migration (M10): the rest of spells.cpp
+# (detection, monster-status, terrain and self-effect spells) and the
+# casting layer (mage spells, prayers, studying), driven through their real
+# prompts by the headless ui_io stub's key script. Same shape as
+# monster_combat_dump. See tools/spell_casting_dump/spell_casting_dump.cpp.
+#
+set(spell_casting_dump_source_files ${source_files})
+list(REMOVE_ITEM spell_casting_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
+list(APPEND spell_casting_dump_source_files
+        tools/spell_casting_dump/spell_casting_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(spell_casting_dump ${spell_casting_dump_source_files})
+target_link_libraries(spell_casting_dump ${CURSES_LIBRARIES})
+set_target_properties(spell_casting_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

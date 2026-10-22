@@ -281,13 +281,13 @@ public static class PlayerMovement
             // missing from it)
             if (pickup && w.Game.Options.PromptToPickup)
             {
-                pickup = w.Confirm("Pick up the item?");
+                pickup = PlayerCore.GetInputConfirmation(w, "Pick up the item?");
             }
 
             // Check to see if it will change the players speed.
             if (pickup && !PlayerInventory.CanCarryItem(py, item))
             {
-                pickup = w.Confirm("Exceed your weight limit to pick up the item?");
+                pickup = PlayerCore.GetInputConfirmation(w, "Exceed your weight limit to pick up the item?");
             }
 
             // Attempt to pick up an object.

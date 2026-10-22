@@ -2,6 +2,7 @@ using Umoria.Core.Config;
 using Umoria.Core.Data.Generated;
 using Umoria.Core.Dungeon;
 using Umoria.Core.Model.Generated;
+using Umoria.Core.Rng;
 
 namespace Umoria.Core.Character;
 
@@ -12,9 +13,8 @@ namespace Umoria.Core.Character;
 // startMoria()'s new-character path. Neither consumes RNG.
 //
 // playerGainSpells() (actually choosing/learning spells -- an interactive
-// menu for mages, a random pick for priests) is NOT ported: it's only
-// reachable from the in-game study command, which belongs to the casting
-// layer (M10).
+// menu for mages, a random pick for priests) is the in-game study command;
+// it joined in M10 with the casting layer, as GainSpells.
 public static class PlayerSpells
 {
     private static (string MagicType, int Offset) MagicTypeFor(int stat)
@@ -286,6 +286,223 @@ public static class PlayerSpells
 
             // can't print mana here, may be in store or inventory mode
             py.Flags.Status |= PlayerConfig.Status.PyMana;
+        }
+    }
+
+    // src/player.cpp:803 playerCanRead() (M10)
+    private static bool CanRead(PlayerWorld w)
+    {
+        if (w.Py.Flags.Blind > 0)
+        {
+            PlayerCore.PrintMessage(w, "You can't see to read your spell book!");
+            return false;
+        }
+
+        if (PlayerMovement.NoLight(w))
+        {
+            PlayerCore.PrintMessage(w, "You have no light to read by.");
+            return false;
+        }
+
+        return true;
+    }
+
+    // src/player.cpp:817 lastKnownSpell() (M10)
+    private static int LastKnownSpell(Player py)
+    {
+        for (var lastKnown = 0; lastKnown < 32; lastKnown++)
+        {
+            if (py.Flags.SpellsLearnedOrder[lastKnown] == 99)
+            {
+                return lastKnown;
+            }
+        }
+
+        // We should never actually reach this, but just in case... -MRC-
+        return 0;
+    }
+
+    // src/player.cpp:829 playerDetermineLearnableSpells() (M10)
+    private static uint DetermineLearnableSpells(Player py)
+    {
+        uint spellFlag = 0;
+
+        for (var i = 0; i < py.Pack.UniqueItems; i++)
+        {
+            if (py.Inventory[i].CategoryId == TreasureCategory.TvMagicBook)
+            {
+                spellFlag |= py.Inventory[i].Flags;
+            }
+        }
+
+        return spellFlag;
+    }
+
+    // src/player.cpp:841 playerGainSpells() -- gain spells when player wants
+    // to -JW- (M10: the study command). Mages choose from a menu (keys via
+    // PlayerCore.GetCommand); priests are given random prayers.
+    //
+    // NOTE: the original's spell_bank[] is a 31-entry stack array whose
+    // removal loop copies spell_bank[spell_id] (one past the last valid
+    // entry, uninitialized) down; the copied value is never read again. The
+    // port sizes the bank at 32 zeroed entries so that copy stays in bounds.
+    public static void GainSpells(PlayerWorld w)
+    {
+        var py = w.Py;
+
+        if (py.Flags.Confused > 0)
+        {
+            PlayerCore.PrintMessage(w, "You are too confused.");
+            return;
+        }
+
+        int newSpells = py.Flags.NewSpellsToLearn;
+        var diffSpells = 0;
+
+        var spells = DataPlayerData.MagicSpells[py.Misc.ClassId - 1];
+
+        int stat;
+        int offset;
+
+        // Priests don't need light because they get spells from their god, so only
+        // fail when can't see if player has SPELL_TYPE_MAGE spells. This check is done below.
+        if (DataPlayerData.Classes[py.Misc.ClassId].ClassToUseMageSpells == SpellConfig.SpellTypeMage)
+        {
+            // People with SPELL_TYPE_MAGE spells can't learn spell_bank if they can't read their books.
+            if (!CanRead(w))
+            {
+                return;
+            }
+            stat = PlayerConfig.Attr.Int;
+            offset = SpellConfig.NameOffsetSpells;
+        }
+        else
+        {
+            stat = PlayerConfig.Attr.Wis;
+            offset = SpellConfig.NameOffsetPrayers;
+        }
+
+        var lastKnown = LastKnownSpell(py);
+
+        if (newSpells == 0)
+        {
+            PlayerCore.PrintMessage(w, $"You can't learn any new {(stat == PlayerConfig.Attr.Int ? "spell" : "prayer")}s!");
+
+            w.Game.PlayerFreeTurn = true;
+            return;
+        }
+
+        uint spellFlag;
+
+        // determine which spells player can learn
+        // mages need the book to learn a spell, priests do not need the book
+        if (stat == PlayerConfig.Attr.Int)
+        {
+            spellFlag = DetermineLearnableSpells(py);
+        }
+        else
+        {
+            spellFlag = 0x7FFFFFFF;
+        }
+
+        // clear bits for spells already learned
+        spellFlag &= ~py.Flags.SpellsLearnt;
+
+        var spellId = 0;
+        var spellBank = new int[32];
+        uint mask = 0x1;
+
+        for (var i = 0; spellFlag != 0; mask <<= 1, i++)
+        {
+            if ((spellFlag & mask) != 0)
+            {
+                spellFlag &= ~mask;
+                if (spells[i].LevelRequired <= py.Misc.Level)
+                {
+                    spellBank[spellId] = i;
+                    spellId++;
+                }
+            }
+        }
+
+        if (newSpells > spellId)
+        {
+            PlayerCore.PrintMessage(w, "You seem to be missing a book.");
+
+            diffSpells = newSpells - spellId;
+            newSpells = spellId;
+        }
+
+        if (newSpells == 0)
+        {
+            // do nothing
+        }
+        else if (stat == PlayerConfig.Attr.Int)
+        {
+            // get to choose which mage spells will be learned
+            // (terminalSaveScreen(), displaySpellsList() -- display)
+
+            while (newSpells != 0 && PlayerCore.GetCommand(w, "Learn which spell?", out var query))
+            {
+                var c = query - 'a';
+
+                // test j < 23 in case i is greater than 22, only 22 spells
+                // are actually shown on the screen, so limit choice to those
+                if (c >= 0 && c < spellId && c < 22)
+                {
+                    newSpells--;
+
+                    py.Flags.SpellsLearnt |= 1u << spellBank[c];
+                    py.Flags.SpellsLearnedOrder[lastKnown] = (byte)spellBank[c];
+                    lastKnown++;
+
+                    for (; c <= spellId - 1; c++)
+                    {
+                        spellBank[c] = spellBank[c + 1];
+                    }
+
+                    spellId--;
+
+                    // (eraseLine(), displaySpellsList() -- display)
+                }
+                // (else terminalBellSound() -- display)
+            }
+
+            // (terminalRestoreScreen() -- display)
+        }
+        else
+        {
+            // pick a prayer at random
+            while (newSpells != 0)
+            {
+                var id = RandomNumber.Next(spellId) - 1;
+                py.Flags.SpellsLearnt |= 1u << spellBank[id];
+                py.Flags.SpellsLearnedOrder[lastKnown] = (byte)spellBank[id];
+                lastKnown++;
+
+                PlayerCore.PrintMessage(w, $"You have learned the prayer of {DataPlayerData.SpellNames[spellBank[id] + offset]}.");
+
+                for (; id <= spellId - 1; id++)
+                {
+                    spellBank[id] = spellBank[id + 1];
+                }
+
+                spellId--;
+                newSpells--;
+            }
+        }
+
+        py.Flags.NewSpellsToLearn = (byte)(newSpells + diffSpells);
+
+        if (py.Flags.NewSpellsToLearn == 0)
+        {
+            py.Flags.Status |= PlayerConfig.Status.PyStudy;
+        }
+
+        // set the mana for first level characters when they learn their first spell.
+        if (py.Misc.Mana == 0)
+        {
+            GainMana(py, stat);
         }
     }
 }

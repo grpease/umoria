@@ -1,3 +1,4 @@
+using Umoria.Core.Character;
 using Umoria.Core.Config;
 using Umoria.Core.Dungeon;
 using Umoria.Core.Model.Generated;
@@ -13,8 +14,12 @@ namespace Umoria.Core.Items;
 // Starting inventory goes through itemIdentifyAsStoreBought() and
 // inventoryCarryItem()'s stacking check reads itemSetColorlessAsIdentified(),
 // so these had to land now. The rest of identification.cpp (item
-// descriptions, flavor-name shuffling in magicInitializeItemNames, the
-// identify command itself) stays with M11.
+// descriptions, flavor-name shuffling in magicInitializeItemNames) stays
+// with M11.
+//
+// M10 added what the identify and recharge spells reach: itemIdentify()
+// (with itemAppendToInscription() and its shop/dungeon stack merging),
+// spellItemRemoveIdentification() and itemIdentificationClearEmpty().
 public sealed class ObjectIdentification
 {
     // OBJECT_IDENT_SIZE (src/game.h): 7 categories x 64 sub-categories.
@@ -138,5 +143,87 @@ public sealed class ObjectIdentification
         }
 
         return IsObjectKnown(IdentIndex(offset, subCategoryId));
+    }
+
+    // src/identification.cpp:389 spellItemRemoveIdentification() (M10)
+    public static void SpellItemRemoveIdentification(ref Inventory item)
+    {
+        item.Identification &= unchecked((byte)~IdentificationConfig.IdKnown2);
+    }
+
+    // src/identification.cpp:393 itemIdentificationClearEmpty() (M10)
+    public static void ItemIdentificationClearEmpty(ref Inventory item)
+    {
+        item.Identification &= unchecked((byte)~IdentificationConfig.IdEmpty);
+    }
+
+    // src/identification.cpp:932 itemAppendToInscription() (M10)
+    public static void ItemAppendToInscription(ref Inventory item, byte itemIdentType)
+    {
+        item.Identification |= itemIdentType;
+    }
+
+    // src/identification.cpp:440 itemIdentify() -- somethings been
+    // identified. Extra complexity by CJS so that it can merge store/dungeon
+    // objects when appropriate. `itemId` follows the merged stack. (M10)
+    public void ItemIdentify(PlayerWorld w, ref int itemId)
+    {
+        var py = w.Py;
+        ref var item = ref py.Inventory[itemId];
+
+        if (PlayerInventory.ItemIsCursed(item))
+        {
+            ItemAppendToInscription(ref item, IdentificationConfig.IdDamd);
+        }
+
+        if (ItemSetColorlessAsIdentified(item.CategoryId, item.SubCategoryId, item.Identification))
+        {
+            return;
+        }
+
+        ItemSetAsIdentified(item.CategoryId, item.SubCategoryId);
+
+        // no merging possible
+        if (!(item.SubCategoryId >= InventoryConfig.ItemSingleStackMin && item.SubCategoryId <= InventoryConfig.ItemSingleStackMax))
+        {
+            return;
+        }
+
+        // (`item` stays a reference to the original slot, as in the
+        // original, even after a merge shifts the pack under it)
+
+        int j;
+
+        for (var i = 0; i < py.Pack.UniqueItems; i++)
+        {
+            var other = py.Inventory[i];
+
+            var matchingCat = other.CategoryId == item.CategoryId;
+            var matchingSubCat = other.SubCategoryId == item.SubCategoryId;
+            var totalItemsCount = other.ItemsCount + item.ItemsCount;
+
+            if (matchingCat && matchingSubCat && i != itemId && totalItemsCount < 256)
+            {
+                // make *item_id the smaller number
+                if (itemId > i)
+                {
+                    j = itemId;
+                    itemId = i;
+                    i = j;
+                }
+
+                PlayerCore.PrintMessage(w, "You combine similar objects from the shop and dungeon.");
+
+                py.Inventory[itemId].ItemsCount += py.Inventory[i].ItemsCount;
+                py.Pack.UniqueItems--;
+
+                for (j = i; j < py.Pack.UniqueItems; j++)
+                {
+                    py.Inventory[j] = py.Inventory[j + 1];
+                }
+
+                py.Inventory[j] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjNothing);
+            }
+        }
     }
 }

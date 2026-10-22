@@ -261,7 +261,7 @@ public static class MonsterSpells
         var id = 0;
         while (spellFlags != 0)
         {
-            spellChoice[id] = GetAndClearFirstBit(ref spellFlags);
+            spellChoice[id] = Helpers.GetAndClearFirstBit(ref spellFlags);
             id++;
         }
 
@@ -299,24 +299,5 @@ public static class MonsterSpells
         }
 
         return true;
-    }
-
-    // src/helpers.cpp:10 getAndClearFirstBit()
-    private static int GetAndClearFirstBit(ref uint flag)
-    {
-        uint mask = 0x1;
-
-        for (var i = 0; i < 32; i++)
-        {
-            if ((flag & mask) != 0)
-            {
-                flag &= ~mask;
-                return i;
-            }
-            mask <<= 1;
-        }
-
-        // no one bits found
-        return -1;
     }
 }

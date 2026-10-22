@@ -31,7 +31,7 @@ generation (initially feared otherwise).
 - [x] M7 — Player status-effects subsystem
 - [x] M8 — Player movement/action subsystem
 - [x] M9 — Monster AI & melee combat, together with damage-spell primitives
-- [ ] M10 — Remaining spell effects + casting layer
+- [x] M10 — Remaining spell effects + casting layer
 - [ ] M11 — Items/inventory/identification
 - [ ] M12 — Save/load (JSON)
 - [ ] M13 — Stores/economy
@@ -221,6 +221,10 @@ playDungeon() puts random teleportation between them).
     repeated command). All three state halves are ported (PlayerCore.UpdateMovementStateFlags /
     PlayerCore.PrintMessage); the display halves stay no-ops. M6's PlayerSpells still calls the display-only
     ScreenRendering.PrintMessage -- fine at creation time, but its in-game callers (M10) must use PlayerCore's.
+    (M10: checked -- every in-game path into those messages has already zeroed command_count, by a key read --
+    the cast/pray/study commands read a book or menu letter first -- or by an earlier message; the new
+    PlayerSpells.GainSpells uses PlayerCore.PrintMessage. Revisit if a later caller reaches
+    playerCalculateAllowedSpellsCount() with neither.)
   - Word of recall confirmed isolated from level generation: it only sets dg.current_level,
     dg.generate_new_level and one turn of paralysis.
 - Model changes: Dungeon gained GameTurn and GenerateNewLevel (previously omitted as main-loop state); new
@@ -401,20 +405,73 @@ targets were confirmed from the trace instead.
   - Hallucination still excluded (M7/M8's open decision): dungeonLiteSpot() redraws via caveGetTileSymbol(), which
     draws RNG while hallucinating, and monster visibility changes call it.
 
-### M10 — Remaining spell effects + casting layer                                                                   
-																											  
-- Scope: spells.cpp's remaining groups — detection/utility (treasure/object/trap/door detection, mapping,       
-identify, no monster interaction), monster-status effects, player self-effect spells (stat loss/restore,      
-curing) — plus the casting layer on top: mage_spells.cpp, player_magic.cpp, player_pray.cpp (spell selection, 
-cost, failure chance).                                                                                        
-- Size: M-L. Depends on: M1, M5, M6, M7, and M9 for anything touching monster HP.                               
-- Verify: per-group golden-trace hooks (fixed seed, fixed caster position/direction, dump                       
-affected-tile/monster-state deltas).                                                                          
-- Defer: nothing material; this closes out spells.cpp.
-- From M9: the damage primitives, teleport away/to, aggravate and lose-experience are already ported
-(Spells.DamageSpells / SpellEffects); what is left of spells.cpp is the detection/utility group, the monster-status
-spells and the terrain/light spells listed in M9's Defer.                                                          
-																											  
+### M10 — Remaining spell effects + casting layer
+
+- Scope (as built): the rest of spells.cpp -- detection and area light (treasure/object/trap/secret-door/invisible/
+evil/all-monster detection, light and darken area, magic mapping), the monster-status spells (speed/slow, confuse,
+sleep, polymorph, clone, teleport-other, their all-in-sight forms, mass genocide, genocide, turn undead), the terrain
+and object spells (light line, starlite, stone to mud, build wall, door/trap destruction and disarming in a line or
+adjacent, surround with traps/doors, destruction, glyph of warding, create food) and the player self-effects (hit point
+change, the six stat-loss spells, slow poison, enchant, remove curse, restore levels, identify, recharge) -- plus the
+casting layer: spells.cpp's spellGetId()/castSpellGetId(), all of mage_spells.cpp and player_pray.cpp, the rest of
+player_magic.cpp, and playerGainSpells() (the study command, deferred by M6). Done -- Umoria.Core.Spells.DetectionSpells
+/ MonsterStatusSpells / TerrainSpells / SpellEffects / SpellCasting, Character.PlayerMagic, PlayerSpells.GainSpells.
+spells.cpp is now fully ported.
+- Real call graph (read, not assumed):
+  - The casting layer is mostly prompts, and the prompts have game-state effects: getKeyInput() zeroes
+    game.command_count on every key, getDirectionWithMemory() writes py.prev_dir and sets player_free_turn on
+    <ESCAPE>, inventoryGetInputForItemId() sets player_free_turn on <ESCAPE> and fails without reading a key on an
+    empty pack. Those halves are ported in PlayerCore (GetCommand, GetInputConfirmation, GetItemId,
+    GetDirectionWithMemory); the keys themselves come from two new PlayerWorld hooks, ReadCommand and SelectItem
+    (Confirm already existed). M8's pickup prompts now go through GetInputConfirmation too.
+  - spellIdentifyItem() reaches identification.cpp's itemIdentify(), which is game state, not display: it merges a
+    store-bought stack with a dungeon-found one and inscribes cursed items. Ported with it (ObjectIdentification), plus
+    the small spellItemRemoveIdentification()/itemIdentificationClearEmpty()/itemAppendToInscription() helpers that
+    recharge reaches. itemDescription() is still M11: identify's, stone-to-mud's and genocide's messages carry the bare
+    catalog name, like M9's armour messages (they still zero command_count).
+  - "Display" calls re-checked per M7's lesson: printCharacterCurrentMana/CurrentHitPoints, displaySpellsList and
+    panelPutTile are pure display. drawDungeonPanel() (magic mapping) redraws through caveGetTileSymbol(), which draws
+    RNG only while hallucinating -- still the open M14 decision.
+  - Quirks kept as written: spellDestroyDoorsTrapsInDirection()'s loop runs `distance <= range || open space` (its
+    siblings use `&&`), so it carries on past bolt range to the first closed space; spellPolymorphMonster()'s
+    "morphed = true" re-test is a no-op and an unaffected monster doesn't stop the ray; the mage remove-curse spell
+    clears TR_CURSED without recalculating bonuses (the priest one, and the scroll's spellRemoveCurseFromAllWornItems(),
+    differ); playerGainSpells()' bank shift reads one entry past the last valid one (uninitialized, never used again --
+    the port's bank has a spare zeroed slot); playerGainLevel() halves excess experience per level gained, so one big
+    experience grant doesn't reach the level it "should".
+  - getAndClearFirstBit() moved from MonsterSpells to a shared Umoria.Core.Helpers.
+- Model changes: PlayerWorld.ReadCommand/SelectItem; GameState.UseLastDirection (read by getDirectionWithMemory(), set
+by M15's command loop); MonsterManager.MonsterLevels (polymorph's random-creature pick).
+- Verify: new tools/spell_casting_dump harness, same build pattern as M9 (real sources minus main.cpp/ui_io.cpp plus the
+headless stub) -- zero changes to src/. M9's arena and monster spec language; casting tokens carry a key script that
+both sides feed to the real prompts (book letter, spell letter incl. upper-case confirm, '*' list, unknown letters,
+<ESCAPE>, direction, genocide's monster letter, the recharge/identify item), and the number of keys each command read is
+dumped -- a spell that fails its roll never reads its direction, so "same keys consumed" is part of the check. Three
+lines per step (player/RNG state with hashes, spell state -- learnt/worked/forgotten/new, fast, bless, detect
+invisible, protection, invulnerability, resistances, prev_dir -- and every monster) and the full player at the end. 84
+scenarios, 24.6k lines: study (mage menu, random priest prayers, missing books, blind/dark/confused), every refusal path
+of both cast commands, low-mana confirmations and fainting, every spell in all four mage and four priest books (each
+succeeds at least once -- checked via spells_worked), Rogue and Paladin casters, and each spells.cpp function called
+directly against chosen monsters (light-sensitive worms/bats/eyes, stone golems, earth spirit, Xorn, undead, sleep-immune
+jellies, the Balrog for the genocide/polymorph exemptions) and terrain (the door corridor, rubble, traps, chests, room
+walls). Byte-for-byte on the first run; a coverage pass (coverlet, once, before Smart App Control blocked it again) then
+drove 18 more scenarios -- identify's merge in both stack orders, the "damned" inscription, turn undead succeeding,
+holy word stacking invulnerability, recharge's auto-failure and identified-wand paths, chests hit by each disarm spell,
+stone to mud through walls and a rubble row -- also byte-for-byte; the last few targets were confirmed from the trace.
+- Harness/stub notes: the M6 stub's header said getKeyInput() zeroes command_count but the code didn't; it now does
+(and getInputConfirmation() too, which reads through getKeyInput() in the real game). Every older baseline regenerates
+byte-identical, since no earlier harness ever reached a prompt with a count pending. A destroy-pack-item token is
+guarded to the pack: on an empty pack inventoryDestroyItem() writes py.inventory[-1].
+- Not covered: identifying a worn item -- with a non-empty pack inventoryGetInputForItemId() only offers the pack, and
+the empty-pack equipment menu maps letters to worn slots, which is UI (M14). The two `default:` arms of the cast
+switches are unreachable.
+- Defer:
+  - To M11: the item callers of these spells (wands, staffs, scrolls, potions -- e.g. starlite, door/trap destruction,
+    enchant, surround with traps/doors are only reachable from items); itemDescription() for the messages above.
+  - To M14: the equipment-menu half of inventoryGetInputForItemId() and the roguelike-keys mapping in
+    getDirectionWithMemory(); the '*' spell list display; hallucination (as before).
+  - To M15: the study and cast commands' key dispatch, and setting game.use_last_direction for counted commands.
+
 ### M11 — Items/inventory/identification                                                                            
 																											  
 - Scope: inventory.cpp, identification.cpp (956), scrolls.cpp, staves.cpp — wielding, using, item-use dispatch. 
@@ -430,6 +487,9 @@ in PlayerMovement are waiting on it for their text. inventoryDamageItem()/invent
 acid and corroding-gas traps (with M9). (M9 did that: inventoryDamageItem()/inventoryDestroyItem() were self-contained.)
 - From M9: damageMinusAC()'s armour messages carry the bare catalog name until itemDescription() exists;
 player_throw.cpp (thrown objects) kills through MonsterLife.TakeHit.
+- From M10: every spell an item casts now exists (Spells.*) -- the item-use dispatch only has to call them.
+itemIdentify() is already ported (ObjectIdentification.ItemIdentify, with the shop/dungeon stack merge); identify's,
+stone-to-mud's and genocide's messages are waiting on itemDescription() for their text.
 																											  
 ### M12 — Save/load (JSON)                                                                                          
 																											  
@@ -480,6 +540,9 @@ plus manual interactive playtesting as the final acceptance gate.
 - From M8: the player commands take their direction as a parameter; the command layer around them -- reading the
 key (getDirectionWithMemory()'s prompt half), repeat counts and use_last_direction, playerRestOn()'s prompt, and
 running's find_count bookkeeping in playDungeon() -- is this milestone's glue.
+- From M10: the study and cast/pray commands are ported whole (PlayerSpells.GainSpells, SpellCasting.GetAndCastMagicSpell
+/ Pray), reading their keys through PlayerWorld.ReadCommand/SelectItem/Confirm; the loop only dispatches to them and
+sets game.use_last_direction for counted commands.
 - From M9: the per-turn monster glue -- the compactMonsters() check when the list is nearly full, MON_CHANCE_OF_NEW
 new monsters, and skipping the command while paralysed or resting -- before updateMonsters(true).
 																											  

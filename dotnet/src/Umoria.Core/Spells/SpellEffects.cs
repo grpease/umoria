@@ -3,6 +3,7 @@ using Umoria.Core.Config;
 using Umoria.Core.Creatures;
 using Umoria.Core.Data.Generated;
 using Umoria.Core.Dungeon;
+using Umoria.Core.Items;
 using Umoria.Core.Model.Generated;
 using Umoria.Core.Rng;
 
@@ -13,6 +14,12 @@ namespace Umoria.Core.Spells;
 // thieves vanishing), spellTeleportPlayerTo() (teleport-to), and the
 // aggravate and experience-drain attacks (spellAggravateMonsters(),
 // spellLoseEXP()). The rest of spells.cpp's utility/status group is M10.
+//
+// M10 added the player self-effects: hit point change, the six stat-loss
+// spells, slow poison, enchant, remove curse, restore levels, identify and
+// recharge. Identify's "<slot> <description>" message uses the bare catalog
+// name until itemDescription() exists (M11); it still zeroes
+// game.command_count.
 public static class SpellEffects
 {
     // src/spells.cpp:432 spellAggravateMonsters() -- get all the monsters on
@@ -177,5 +184,260 @@ public static class SpellEffects
             }
             // (printCharacterLevel(), printCharacterTitle() -- display)
         }
+    }
+
+    // src/spells.cpp:1909 spellChangePlayerHitPoints() -- change players hit
+    // points in some manner -RAK-
+    public static bool ChangePlayerHitPoints(PlayerWorld w, int adjustment)
+    {
+        var m = w.Py.Misc;
+
+        if (m.CurrentHp >= m.MaxHp)
+        {
+            return false;
+        }
+
+        m.CurrentHp = (short)(m.CurrentHp + adjustment);
+        if (m.CurrentHp > m.MaxHp)
+        {
+            m.CurrentHp = m.MaxHp;
+            m.CurrentHpFraction = 0;
+        }
+        // (printCharacterCurrentHitPoints() -- display)
+
+        adjustment /= 5;
+
+        if (adjustment < 3)
+        {
+            PlayerCore.PrintMessage(w, adjustment == 0 ? "You feel a little better." : "You feel better.");
+        }
+        else
+        {
+            PlayerCore.PrintMessage(w, adjustment < 7 ? "You feel much better." : "You feel very good.");
+        }
+
+        return true;
+    }
+
+    private static void LoseStat(PlayerWorld w, int stat, bool sustained, string lost, string resisted)
+    {
+        if (!sustained)
+        {
+            PlayerStatLogic.StatRandomDecrease(w.Py, stat);
+            PlayerCore.PrintMessage(w, lost);
+        }
+        else
+        {
+            PlayerCore.PrintMessage(w, resisted);
+        }
+    }
+
+    // src/spells.cpp:2106 spellLoseSTR() -- lose a strength point. -RAK-
+    public static void LoseStr(PlayerWorld w) =>
+        LoseStat(w, PlayerConfig.Attr.Str, w.Py.Flags.SustainStr, "You feel very sick.", "You feel sick for a moment,  it passes.");
+
+    // src/spells.cpp:2116 spellLoseINT() -- lose an intelligence point. -RAK-
+    public static void LoseInt(PlayerWorld w) =>
+        LoseStat(w, PlayerConfig.Attr.Int, w.Py.Flags.SustainInt, "You become very dizzy.", "You become dizzy for a moment,  it passes.");
+
+    // src/spells.cpp:2126 spellLoseWIS() -- lose a wisdom point. -RAK-
+    public static void LoseWis(PlayerWorld w) =>
+        LoseStat(w, PlayerConfig.Attr.Wis, w.Py.Flags.SustainWis, "You feel very naive.", "You feel naive for a moment,  it passes.");
+
+    // src/spells.cpp:2136 spellLoseDEX() -- lose a dexterity point. -RAK-
+    public static void LoseDex(PlayerWorld w) =>
+        LoseStat(w, PlayerConfig.Attr.Dex, w.Py.Flags.SustainDex, "You feel very sore.", "You feel sore for a moment,  it passes.");
+
+    // src/spells.cpp:2146 spellLoseCON() -- lose a constitution point. -RAK-
+    public static void LoseCon(PlayerWorld w) =>
+        LoseStat(w, PlayerConfig.Attr.Con, w.Py.Flags.SustainCon, "You feel very sick.", "You feel sick for a moment,  it passes.");
+
+    // src/spells.cpp:2156 spellLoseCHR() -- lose a charisma point. -RAK-
+    public static void LoseChr(PlayerWorld w) =>
+        LoseStat(w, PlayerConfig.Attr.Chr, w.Py.Flags.SustainChr, "Your skin starts to itch.", "Your skin starts to itch, but feels better now.");
+
+    // src/spells.cpp:2202 spellSlowPoison() -- slow poison -RAK-
+    public static bool SlowPoison(PlayerWorld w)
+    {
+        var f = w.Py.Flags;
+
+        if (f.Poisoned > 0)
+        {
+            f.Poisoned = (short)(f.Poisoned / 2);
+            if (f.Poisoned < 1)
+            {
+                f.Poisoned = 1;
+            }
+            PlayerCore.PrintMessage(w, "The effect of the poison has been reduced.");
+            return true;
+        }
+
+        return false;
+    }
+
+    // src/spells.cpp:2289 spellEnchantItem() -- enchants a plus onto an
+    // item. -RAK- `maxBonusLimit` is the maximum bonus allowed; usually 10,
+    // but weapon's maximum damage when enchanting melee weapons to damage.
+    public static bool EnchantItem(ref short plusses, short maxBonusLimit)
+    {
+        // avoid randomNumber(0) call
+        if (maxBonusLimit <= 0)
+        {
+            return false;
+        }
+
+        var chance = 0;
+
+        if (plusses > 0)
+        {
+            chance = plusses;
+
+            // very rarely allow enchantment over limit
+            if (RandomNumber.Next(100) == 1)
+            {
+                chance = RandomNumber.Next(chance) - 1;
+            }
+        }
+
+        if (RandomNumber.Next(maxBonusLimit) > chance)
+        {
+            plusses += 1;
+            return true;
+        }
+
+        return false;
+    }
+
+    // src/spells.cpp:2315 spellRemoveCurseFromAllWornItems() -- removes
+    // curses from items in inventory -RAK-
+    public static bool RemoveCurseFromAllWornItems(PlayerWorld w)
+    {
+        var py = w.Py;
+        var removed = false;
+
+        for (var id = PlayerConfig.Equipment.Wield; id <= PlayerConfig.Equipment.Outer; id++)
+        {
+            if (PlayerInventory.ItemIsCursed(py.Inventory[id]))
+            {
+                py.Inventory[id].Flags &= ~TreasureConfig.Flags.TrCursed;
+                PlayerBonuses.RecalculateBonuses(py);
+                removed = true;
+            }
+        }
+
+        return removed;
+    }
+
+    // src/spells.cpp:2330 spellRestorePlayerLevels() -- restores any drained
+    // experience -RAK-
+    public static bool RestorePlayerLevels(PlayerWorld w)
+    {
+        var m = w.Py.Misc;
+
+        if (m.MaxExp > m.Exp)
+        {
+            PlayerCore.PrintMessage(w, "You feel your life energies returning.");
+
+            // this while loop is not redundant, ptr_exp may reduce the exp level
+            while (m.Exp < m.MaxExp)
+            {
+                m.Exp = m.MaxExp;
+                PlayerCore.DisplayCharacterExperience(w);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // src/spells.cpp:405 spellIdentifyItem() -- identify an object -RAK-
+    public static bool IdentifyItem(PlayerWorld w)
+    {
+        var py = w.Py;
+
+        if (!PlayerCore.GetItemId(w, "Item you wish identified?", 0, PlayerConfig.PlayerInventorySize, out var itemId))
+        {
+            return false;
+        }
+
+        w.Identification.ItemIdentify(w, ref itemId);
+
+        ref var item = ref py.Inventory[itemId];
+        w.Identification.SpellItemIdentifyAndRemoveRandomInscription(ref item);
+
+        var description = DataTreasureData.GameObjects[item.Id].Name;
+
+        if (itemId >= PlayerConfig.Equipment.Wield)
+        {
+            PlayerBonuses.RecalculateBonuses(py);
+            // (the "<slot>: " prefix, playerItemWearingDescription(), is
+            // display text -- M11/M14)
+            PlayerCore.PrintMessage(w, description);
+        }
+        else
+        {
+            PlayerCore.PrintMessage(w, $"{(char)(itemId + 97)} {description}");
+        }
+
+        return true;
+    }
+
+    // src/spells.cpp:1102 spellRechargeItem() -- recharge a wand, staff, or
+    // rod. Sometimes the item breaks. -RAK-
+    public static bool RechargeItem(PlayerWorld w, int numberOfCharges)
+    {
+        var py = w.Py;
+
+        if (!InventoryDamage.FindRange(py, TreasureCategory.TvStaff, TreasureCategory.TvWand, out var itemPosStart, out var itemPosEnd))
+        {
+            PlayerCore.PrintMessage(w, "You have nothing to recharge.");
+            return false;
+        }
+
+        if (!PlayerCore.GetItemId(w, "Recharge which item?", itemPosStart, itemPosEnd, out var itemId))
+        {
+            return false;
+        }
+
+        ref var item = ref py.Inventory[itemId];
+
+        // recharge  I = recharge(20) = 1/6  failure for empty 10th level wand
+        // recharge II = recharge(60) = 1/10 failure for empty 10th level wand
+        //
+        // make it harder to recharge high level, and highly charged wands,
+        // note that `fail_chance` can be negative, so check its value before
+        // trying to call randomNumber().
+        var failChance = numberOfCharges + 50 - item.DepthFirstFound - item.MiscUse;
+
+        // Automatic failure.
+        if (failChance < 19)
+        {
+            failChance = 1;
+        }
+        else
+        {
+            failChance = RandomNumber.Next(failChance / 10);
+        }
+
+        if (failChance == 1)
+        {
+            PlayerCore.PrintMessage(w, "There is a bright flash of light.");
+            InventoryDamage.DestroyItem(py, itemId);
+        }
+        else
+        {
+            numberOfCharges = (numberOfCharges / (item.DepthFirstFound + 2)) + 1;
+            item.MiscUse = (short)(item.MiscUse + 2 + RandomNumber.Next(numberOfCharges));
+
+            if (ObjectIdentification.SpellItemIdentified(item))
+            {
+                ObjectIdentification.SpellItemRemoveIdentification(ref item);
+            }
+
+            ObjectIdentification.ItemIdentificationClearEmpty(ref item);
+        }
+
+        return true;
     }
 }

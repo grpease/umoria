@@ -138,6 +138,111 @@ public static class PlayerCore
         w.Py.PrevDir = (char)direction;
     }
 
+    // src/ui_io.cpp:378 getCommand() / getTileCharacter() / getMenuItemId()
+    // -- one keypress for a prompt; false on <ESCAPE>. The game-state half
+    // is getKeyInput()'s: it zeroes game.command_count ("just to be safe
+    // -CJS-") on every key read. (M10)
+    public static bool GetCommand(PlayerWorld w, string prompt, out char command)
+    {
+        w.Game.CommandCount = 0;
+
+        var key = w.ReadCommand(prompt);
+        command = key ?? (char)27;
+
+        return key is not null;
+    }
+
+    // src/ui_io.cpp:466 getInputConfirmation() -- the yes/no prompt; like
+    // every key read it zeroes game.command_count. (M10)
+    public static bool GetInputConfirmation(PlayerWorld w, string prompt)
+    {
+        w.Game.CommandCount = 0;
+
+        return w.Confirm(prompt);
+    }
+
+    // src/ui_inventory.cpp:1152 inventoryGetInputForItemId() -- the
+    // game-state half: a range reaching into the equipment means "the whole
+    // pack" (or the equipment list when the pack is empty), an empty choice
+    // fails without a key being read, escaping sets game.player_free_turn,
+    // and reading keys zeroes game.command_count. Which slot is chosen comes
+    // from the PlayerWorld.SelectItem hook, given the effective range. (M10)
+    public static bool GetItemId(PlayerWorld w, string prompt, int itemIdStart, int itemIdEnd, out int itemId)
+    {
+        var py = w.Py;
+        itemId = 0;
+
+        var packFull = false;
+        if (itemIdEnd > PlayerConfig.Equipment.Wield)
+        {
+            packFull = true;
+            itemIdEnd = py.Pack.UniqueItems == 0 ? py.EquipmentCount - 1 : py.Pack.UniqueItems - 1;
+        }
+
+        if (py.Pack.UniqueItems < 1 && (!packFull || py.EquipmentCount < 1))
+        {
+            // ("You are not carrying anything." -- putStringClearToEOL(),
+            // display only)
+            return false;
+        }
+
+        // (choosing from the equipment list when the pack is empty maps the
+        // letter to the n-th worn item; that menu is the UI's, M14)
+
+        w.Game.CommandCount = 0;
+
+        var chosen = w.SelectItem(prompt, itemIdStart, itemIdEnd);
+        if (chosen is null)
+        {
+            w.Game.PlayerFreeTurn = true;
+            return false;
+        }
+
+        itemId = chosen.Value;
+        return true;
+    }
+
+    // src/game.cpp:262 getDirectionWithMemory() -- prompts for a direction
+    // -RAK-; direction memory added, for repeated commands. -CJS- (M10; M8
+    // ported only the py.prev_dir half above, its commands take the
+    // direction as a parameter)
+    //
+    // The roguelike-keys mapping (config::options::use_roguelike_keys,
+    // default off) is key translation, left to the UI (M14).
+    public static bool GetDirectionWithMemory(PlayerWorld w, string? prompt, out int direction)
+    {
+        // used in counted commands. -CJS-
+        if (w.Game.UseLastDirection)
+        {
+            direction = w.Py.PrevDir;
+            return true;
+        }
+
+        prompt ??= "Which direction?";
+
+        while (true)
+        {
+            // Don't end a counted command. -CJS-
+            var oldCount = w.Game.CommandCount;
+            if (!GetCommand(w, prompt, out var command))
+            {
+                w.Game.PlayerFreeTurn = true;
+                direction = 0;
+                return false;
+            }
+            w.Game.CommandCount = oldCount;
+
+            if (command >= '1' && command <= '9' && command != '5')
+            {
+                w.Py.PrevDir = (char)(command - '0');
+                direction = w.Py.PrevDir;
+                return true;
+            }
+
+            // (terminalBellSound() -- display)
+        }
+    }
+
     // src/ui.cpp:728 playerGainLevel() -- increases hit points and level
     // -RAK- (M8)
     private static void GainLevel(PlayerWorld w)

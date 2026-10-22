@@ -31,6 +31,7 @@
     <None Include="..\StatusEffectsTraces\**" LinkBase="StatusEffectsTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\PlayerActionsTraces\**" LinkBase="PlayerActionsTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\MonsterCombatTraces\**" LinkBase="MonsterCombatTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\SpellCastingTraces\**" LinkBase="SpellCastingTraces" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

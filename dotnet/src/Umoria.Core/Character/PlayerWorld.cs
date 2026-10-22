@@ -18,6 +18,10 @@ namespace Umoria.Core.Character;
 // M9 added the monster memories (creature_recall[], which persist across
 // levels like objects_identified[]) and routes MonsterManager's
 // compactMonsters() message through PlayerCore.PrintMessage.
+//
+// M10 added the two remaining input hooks the casting layer reads through:
+// single keypresses (spell menus, directions, genocide's monster letter) and
+// the inventory item prompt.
 public sealed class PlayerWorld
 {
     public PlayerWorld(
@@ -60,6 +64,19 @@ public sealed class PlayerWorld
     // logic: the caller (UI, or a test script) supplies the answer. The
     // default answers "no", like the headless C++ stub.
     public Func<string, bool> Confirm { get; set; } = _ => false;
+
+    // src/ui_io.cpp getCommand() -- one keypress answering a prompt; null
+    // is <ESCAPE>. Input, like Confirm; read it through PlayerCore.GetCommand,
+    // which keeps getKeyInput()'s game-state effect. The default escapes. (M10)
+    public Func<string, char?> ReadCommand { get; set; } = _ => null;
+
+    // src/ui_inventory.cpp:1152 inventoryGetInputForItemId() -- choose an
+    // inventory slot in [start, end] for a prompt; null is <ESCAPE>. The
+    // menu itself (paging between pack and equipment, the '*' list,
+    // inscription digits, upper-case "Try" confirmation) is UI (M14); the
+    // caller sees only the chosen slot. Read it through
+    // PlayerCore.GetItemId. The default escapes. (M10)
+    public Func<string, int, int, int?> SelectItem { get; set; } = (_, _, _) => null;
 }
 
 // src/player_run.cpp's static running state -CJS-

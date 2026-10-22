@@ -23,6 +23,10 @@ public sealed class GameState
     // How many times to repeat a specific command -CJS-
     public uint CommandCount { get; set; }
 
+    // Used in counted commands: repeat the last direction (M10 reads it in
+    // getDirectionWithMemory(); M15's command loop sets it)
+    public bool UseLastDirection { get; set; }
+
     // What the character died from: starvation, Bat, etc.
     public string CharacterDiedFrom { get; set; } = "";
 

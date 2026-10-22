@@ -65,6 +65,9 @@ public sealed class MonsterManager
     // TreasureList) without needing a shared/static cache.
     private readonly int[] _monsterLevels;
 
+    // monster_levels[] for the polymorph spells' random-creature pick (M10).
+    public IReadOnlyList<int> MonsterLevels => _monsterLevels;
+
     public MonsterManager(Model.Generated.Dungeon dg)
     {
         _dg = dg;
