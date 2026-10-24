@@ -6,6 +6,16 @@ namespace Umoria.Core.Ui;
 public interface IKeySource
 {
     int ReadKey();
+
+    // A non-blocking read (curses' getch() in timeout mode): a key already
+    // typed, consumed, or false when there is none. Scripted sources keep
+    // the default -- like tools/ui_screen_dump's shim, they never have a
+    // key "typed ahead", so polling can't eat the script. (M15)
+    bool TryReadKey(out int key)
+    {
+        key = -1;
+        return false;
+    }
 }
 
 // The slice of curses src/ui_io.cpp uses (M14), as a virtual screen: stdscr
@@ -207,6 +217,10 @@ public sealed class Terminal
         BeforeKeyRead?.Invoke(this);
         return _keys.ReadKey();
     }
+
+    // timeout(n); getch(); timeout(-1) -- a key typed ahead, or ERR (-1).
+    // Not a key read the player waits at, so no BeforeKeyRead. (M15)
+    public int GetChNonBlocking() => _keys.TryReadKey(out var key) ? key : -1;
 
     public char CharAt(int y, int x)
     {

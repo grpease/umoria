@@ -73,6 +73,10 @@ void shimSetKeys(const std::string &keys);
 size_t shimKeysLeft();
 int shimExtraEscapes();
 
+// When the keys run out, getch() returns EOF instead of <ESCAPE>
+// (tools/game_loop_dump: the game's own end-of-input handling ends a run).
+void shimSetEofWhenDrained(bool eof);
+
 // Called before each getch() reads a key (nullptr: nothing).
 void shimSetBeforeKeyRead(void (*callback)());
 

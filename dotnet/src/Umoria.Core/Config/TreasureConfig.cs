@@ -23,6 +23,7 @@ public static class TreasureConfig
 
     public const int ObjectBoltsMaxRange = 18; // Maximum range of bolts and balls (M9)
     public const int ObjectsRuneProtection = 3000; // Rune of protection resistance (M9)
+    public const int ObjectLampMaxCapacity = 15000; // Maximum amount that lamp can be filled (M15)
 
     // from config::treasure::flags in src/config.cpp
     public static class Flags

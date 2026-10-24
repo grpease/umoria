@@ -29,7 +29,9 @@ public sealed record CharacterChoices(
 // in exactly the original's order -- including re-running stats/history/
 // age-height-weight once per re-roll, since each re-roll consumes RNG.
 // The display-only pieces (displayCharacterRaces, displayCharacterHistory,
-// the print* calls, help screens) are left to the UI milestone (M14).
+// the print* calls, help screens) are the interactive version's:
+// Ui.GameUi.CharacterCreate (M15), which runs the same steps between its
+// prompts.
 //
 // Verified byte-for-byte against the real characterCreate() via
 // tools/char_create_dump (see CharCreateTraceTests).
@@ -210,17 +212,20 @@ public static class CharacterCreation
         max[PlayerConfig.Attr.Chr] = CreateModifyPlayerStat(max[PlayerConfig.Attr.Chr], chr);
     }
 
-    private static void SetAndUseAllStats(Player py)
+    // printMessage: playerSetAndUseStat()'s spell-count messages ("You can
+    // learn some new prayers now."), which a spell-casting class's
+    // generateCharacterClass() prints (M15; headless callers drop them).
+    private static void SetAndUseAllStats(Player py, Action<string>? printMessage)
     {
         for (var i = 0; i < 6; i++)
         {
             py.Stats.Current[i] = py.Stats.Max[i];
-            PlayerStatLogic.SetAndUseStat(py, i);
+            PlayerStatLogic.SetAndUseStat(py, i, printMessage);
         }
     }
 
     // src/character.cpp:76 characterGenerateStatsAndRace()
-    private static void GenerateStatsAndRace(Player py)
+    internal static void GenerateStatsAndRace(Player py, Action<string>? printMessage = null)
     {
         var race = DataPlayerData.CharacterRaces[py.Misc.RaceId];
         var m = py.Misc;
@@ -231,7 +236,7 @@ public static class CharacterCreation
 
         m.Level = 1;
 
-        SetAndUseAllStats(py);
+        SetAndUseAllStats(py, printMessage);
 
         m.ChanceInSearch = race.SearchChanceBase;
         m.Bth = race.BaseToHit;
@@ -254,7 +259,7 @@ public static class CharacterCreation
     // Assumptions (from the original):
     //   - Each race has init history beginning at (race-1)*3+1
     //   - All history parts are in ascending order
-    private static void GetHistory(Player py)
+    internal static void GetHistory(Player py)
     {
         var backgrounds = DataPlayerData.CharacterBackgrounds;
 
@@ -374,7 +379,7 @@ public static class CharacterCreation
 
     // src/character.cpp:290 characterSetAgeHeightWeight() -- computes
     // character's age, height, and weight. -JWT-
-    private static void SetAgeHeightWeight(Player py)
+    internal static void SetAgeHeightWeight(Player py)
     {
         var race = DataPlayerData.CharacterRaces[py.Misc.RaceId];
 
@@ -419,7 +424,7 @@ public static class CharacterCreation
     }
 
     // src/character.cpp:342 generateCharacterClass()
-    private static void GenerateCharacterClass(Player py, byte classId)
+    internal static void GenerateCharacterClass(Player py, byte classId, Action<string>? printMessage = null)
     {
         var m = py.Misc;
         m.ClassId = classId;
@@ -430,7 +435,7 @@ public static class CharacterCreation
         ApplyStatAdjustments(py, klass.Strength, klass.Intelligence, klass.Wisdom,
             klass.Dexterity, klass.Constitution, klass.Charisma);
 
-        SetAndUseAllStats(py);
+        SetAndUseAllStats(py, printMessage);
 
         // Real values
         m.PlussesToDamage = PlayerStatLogic.DamageAdjustment(py);
@@ -485,7 +490,7 @@ public static class CharacterCreation
     }
 
     // src/character.cpp:443 playerCalculateStartGold()
-    private static void CalculateStartGold(Player py)
+    internal static void CalculateStartGold(Player py)
     {
         var max = py.Stats.Max;
 
@@ -544,7 +549,7 @@ public static class CharacterCreation
 
     // src/game_run.cpp:158 initializeCharacterInventory() -- init players
     // with some belongings. -RAK-
-    private static void InitializeCharacterInventory(Player py, ObjectIdentification identification)
+    internal static void InitializeCharacterInventory(Player py, ObjectIdentification identification)
     {
         // this is needed for bash to work right, it can't hurt anyway
         for (var i = 0; i < py.Inventory.Length; i++)

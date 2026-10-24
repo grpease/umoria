@@ -263,8 +263,7 @@ public static class PlayerCore
     // ported only the py.prev_dir half above, its commands take the
     // direction as a parameter)
     //
-    // The roguelike-keys mapping (config::options::use_roguelike_keys,
-    // default off) is key translation, left to the UI (M14).
+    // M15 added the roguelike-keys mapping (config::options::use_roguelike_keys).
     public static bool GetDirectionWithMemory(PlayerWorld w, string? prompt, out int direction)
     {
         // used in counted commands. -CJS-
@@ -288,6 +287,11 @@ public static class PlayerCore
             }
             w.Game.CommandCount = oldCount;
 
+            if (w.Game.Options.UseRoguelikeKeys)
+            {
+                command = MapRoguelikeKeysToKeypad(command);
+            }
+
             if (command >= '1' && command <= '9' && command != '5')
             {
                 w.Py.PrevDir = (char)(command - '0');
@@ -298,6 +302,52 @@ public static class PlayerCore
             w.Ui?.TerminalBellSound();
         }
     }
+
+    // src/game.cpp:300 getAllDirections() -- similar to
+    // getDirectionWithMemory(), except that no memory exists, and it is
+    // allowed to enter the null direction. -CJS- (M15)
+    public static bool GetAllDirections(PlayerWorld w, string prompt, out int direction)
+    {
+        while (true)
+        {
+            if (!GetCommand(w, prompt, out var command))
+            {
+                w.Game.PlayerFreeTurn = true;
+                direction = 0;
+                return false;
+            }
+
+            if (w.Game.Options.UseRoguelikeKeys)
+            {
+                command = MapRoguelikeKeysToKeypad(command);
+            }
+
+            if (command >= '1' && command <= '9')
+            {
+                direction = command - '0';
+                return true;
+            }
+
+            w.Ui?.TerminalBellSound();
+        }
+    }
+
+    // src/game.cpp:235 mapRoguelikeKeysToKeypad() -- map roguelike
+    // direction commands into numbers (M15)
+    private static char MapRoguelikeKeysToKeypad(char command) =>
+        command switch
+        {
+            'h' => '4',
+            'y' => '7',
+            'k' => '8',
+            'u' => '9',
+            'l' => '6',
+            'n' => '3',
+            'j' => '2',
+            'b' => '1',
+            '.' => '5',
+            _ => command,
+        };
 
     // src/ui.cpp:728 playerGainLevel() -- increases hit points and level
     // -RAK- (M8)

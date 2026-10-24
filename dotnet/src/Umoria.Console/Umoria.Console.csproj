@@ -8,6 +8,15 @@
     <PackageReference Include="Terminal.Gui" Version="2.0.0" />
   </ItemGroup>
 
+  <!-- The game directory's files (src/config.cpp config::files), next to
+       the executable: data/ (splash.txt and versions.txt are rendered from
+       their .in templates at startup, as CMake's configure_file() does) and
+       LICENSE. -->
+  <ItemGroup>
+    <None Include="..\..\..\data\*.txt;..\..\..\data\*.txt.in" LinkBase="data" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>

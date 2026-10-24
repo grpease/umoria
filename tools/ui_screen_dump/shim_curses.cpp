@@ -28,6 +28,7 @@ static size_t script_pos = 0;
 static int extra_escapes = 0;
 static int input_delay = -1;
 static void (*before_key_read)() = nullptr;
+static bool eof_when_drained = false;
 
 static void blank(ShimWindow &win) {
     for (auto &row : win.cells) {
@@ -216,6 +217,17 @@ int getch() {
         return (unsigned char) script[script_pos++];
     }
 
+    // tools/game_loop_dump: the script ends in end of input, as when the
+    // player's terminal goes away
+    if (eof_when_drained) {
+        extra_escapes++;
+        if (extra_escapes > 200) {
+            std::fprintf(stderr, "shim: end of input keeps being read\n");
+            std::exit(4);
+        }
+        return -1; // EOF
+    }
+
     extra_escapes++;
     if (extra_escapes > 50) {
         std::fprintf(stderr, "ui_screen_dump: a prompt keeps reading past the end of its script\n");
@@ -241,6 +253,10 @@ size_t shimKeysLeft() {
 
 int shimExtraEscapes() {
     return extra_escapes;
+}
+
+void shimSetEofWhenDrained(bool eof) {
+    eof_when_drained = eof;
 }
 
 void shimSetBeforeKeyRead(void (*callback)()) {

@@ -86,6 +86,17 @@ public sealed class TreasureList
 
     public ref Inventory this[int id] => ref List[id];
 
+    // src/dungeon_generate.cpp:1144 treasureLinker() -- link all free
+    // space in treasure list together (generateCave(), M15)
+    public void Link()
+    {
+        for (var i = 0; i < List.Length; i++)
+        {
+            List[i] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjNothing);
+        }
+        CurrentId = TreasureConfig.MinTreasureListId;
+    }
+
     // src/game_objects.cpp:70 popt()
     public int Popt()
     {

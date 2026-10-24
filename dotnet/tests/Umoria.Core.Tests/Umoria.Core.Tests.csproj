@@ -41,6 +41,10 @@
     <None Include="..\..\..\tools\store_dump\store_scenarios.inc" Link="StoreTraces\store_scenarios.inc" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\UiScreenTraces\**" LinkBase="UiScreenTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\tools\ui_screen_dump\ui_screen_scenarios.inc" Link="UiScreenTraces\ui_screen_scenarios.inc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\GameLoopTraces\**" LinkBase="GameLoopTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\tools\game_loop_dump\game_loop_scenarios.inc" Link="GameLoopTraces\game_loop_scenarios.inc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\data\*.txt;..\..\..\data\*.txt.in" LinkBase="GameLoopTraces\game\data" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\LICENSE" Link="GameLoopTraces\game\LICENSE" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

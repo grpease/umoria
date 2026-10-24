@@ -22,8 +22,18 @@ public sealed class KeyQueue : IKeySource
 
     public void Close() => _keys.CompleteAdding();
 
-    // Every key typed so far has been read.
-    public bool IsDrained => _keys.Count == 0;
+    // a key already typed (the game's non-blocking reads: flushing typed-ahead
+    // keys, and a keypress interrupting a rest or run)
+    public bool TryReadKey(out int key)
+    {
+        if (_keys.TryTake(out key))
+        {
+            return true;
+        }
+
+        key = -1;
+        return false;
+    }
 
     public int ReadKey()
     {

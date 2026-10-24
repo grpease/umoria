@@ -5,9 +5,8 @@ namespace Umoria.Core.Ui;
 // src/ui_io.cpp -- terminal I/O code, over the virtual curses screen
 // (Terminal). Ported line for line except where the original talks to the
 // OS: terminalInitialize()/terminalRestore() are the frontend's (it owns the
-// real console), the bell is an event, and flushInputBuffer() is a no-op
-// (the original drains keys typed ahead with non-blocking reads; a frontend
-// that wants that can drop its queue). (M14)
+// real console) and the bell is an event. (M14; M15 added the non-blocking
+// read behind flushInputBuffer() and checkForNonBlockingKeyPress().)
 public sealed partial class GameUi
 {
     public const char Escape = (char)27;
@@ -25,10 +24,12 @@ public sealed partial class GameUi
     // waiting message without the -more- prompt
     public void ClearMessageReady() => MessageReadyToPrint = false;
 
-    // Called when getKeyInput() reads end of input, after its own state
-    // changes (eof_flag, the disturb). The original saves and ends the game
-    // there (endGame(), the panic save) -- the main loop's job (M15).
-    public Action? EndOfInput { get; set; }
+    // endGame() and saveGame(), which getKeyInput() calls itself on end of
+    // input. They belong to the main loop (Game.GameRun binds them); endGame()
+    // never returns -- it ends the program (GameExitException). Unbound,
+    // end of input only sets eof_flag and disturbs, as before M15.
+    public Action? EndGame { get; set; }
+    public Func<bool>? SaveGame { get; set; }
 
     // terminalSaveScreen()
     public void TerminalSaveScreen()
@@ -63,9 +64,29 @@ public sealed partial class GameUi
         Term.Refresh();
     }
 
-    // flushInputBuffer() -- see the class comment.
+    // flushInputBuffer() -- drains the keys typed ahead (M15; a scripted
+    // key source never has any, see IKeySource.TryReadKey).
     public void FlushInputBuffer()
     {
+        if (W.Game.EofFlag != 0)
+        {
+            return;
+        }
+
+        while (CheckForNonBlockingKeyPress(0))
+        {
+        }
+    }
+
+    // checkForNonBlockingKeyPress() -- does a non-blocking read, consuming
+    // the data if any, and then returns true if data was read. The _WIN32
+    // branch of the original (timeout(8); getch(); timeout(-1)); the delay
+    // is the key source's business. (M15)
+    public bool CheckForNonBlockingKeyPress(int microseconds)
+    {
+        _ = microseconds;
+
+        return Term.GetChNonBlocking() > 0;
     }
 
     // clearScreen()
@@ -317,9 +338,26 @@ public sealed partial class GameUi
 
                 Term.Refresh();
 
-                // (endGame() / the panic save -- EndOfInput, M15)
+                if (!W.Game.CharacterGenerated || W.Game.CharacterSaved)
+                {
+                    EndGame?.Invoke();
+                }
+
                 PlayerCore.Disturb(W, 1, 0);
-                EndOfInput?.Invoke();
+
+                if (W.Game.EofFlag > 100 && EndGame is not null)
+                {
+                    // just in case, to make sure that the process eventually dies
+                    W.Game.PanicSave = true;
+
+                    W.Game.CharacterDiedFrom = "(end of input: panic saved)";
+                    if (!(SaveGame?.Invoke() ?? false))
+                    {
+                        W.Game.CharacterDiedFrom = "panic: unexpected eof";
+                        W.Game.CharacterIsDead = true;
+                    }
+                    EndGame();
+                }
 
                 return Escape;
             }

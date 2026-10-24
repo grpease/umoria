@@ -17,8 +17,8 @@ namespace Umoria.Core.Persistence;
 //
 // M13 added the stores (svWrite() writes each store's owner, counters and
 // inventory, between the character's hit-point table and the save time).
-// Not here yet: the message history (last_message_id and messages[], M14),
-// which joins this file, as a new section, when the port has one.
+// M15 added the message history (last_message_id and messages[], after the
+// seeds, where svWrite() writes them).
 public sealed class SaveFile
 {
     // Bumped when the format changes incompatibly; LoadGame rejects other
@@ -103,6 +103,11 @@ public sealed class SavedCharacter
     // seed (ObjectIdentification.MagicInitializeItemNames, M11).
     public uint MagicSeed { get; set; }
     public uint TownSeed { get; set; }
+
+    // last_message_id and messages[] -- the ^P history (M15). Older files
+    // without them restore an empty history.
+    public short LastMessageId { get; set; }
+    public string[] Messages { get; set; } = [];
 
     // "this indicates 'cheating' if it is a one"
     public bool PanicSave { get; set; }

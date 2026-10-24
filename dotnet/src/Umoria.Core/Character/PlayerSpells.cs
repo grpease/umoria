@@ -365,8 +365,6 @@ public static class PlayerSpells
         int newSpells = py.Flags.NewSpellsToLearn;
         var diffSpells = 0;
 
-        var spells = DataPlayerData.MagicSpells[py.Misc.ClassId - 1];
-
         int stat;
         int offset;
 
@@ -397,6 +395,12 @@ public static class PlayerSpells
             w.Game.PlayerFreeTurn = true;
             return;
         }
+
+        // (the original takes &magic_spells[class_id - 1][0] at the top; for
+        // a class without spells that's out of range, but only ever
+        // dereferenced past the return above, which such a class always
+        // takes -- found by the M15 game loop trace)
+        var spells = DataPlayerData.MagicSpells[py.Misc.ClassId - 1];
 
         uint spellFlag;
 

@@ -21,7 +21,7 @@ namespace Umoria.Core.Character;
 //                            the detect-enchantment roll.
 // playDungeon() itself (turn counter, store maintenance, monster spawning
 // and movement, the keypress interrupt, random teleport, command input) is
-// M16's job; see migration-plan.md's M7 section.
+// Game.GameRun's (M15).
 //
 // Display calls (printCharacter*(), drawDungeonPanel()) go through w.Ui /
 // ScreenRendering at the original's call sites (M14); messages go through
@@ -84,8 +84,10 @@ public static class PlayerStatusEffects
     // ---- playDungeon() loop body ----------------------------------------
 
     // The loop body from playerUpdateLightStatus() through
-    // playerUpdateWordOfRecall(), in the original order.
-    public static void UpdateTimedEffects(PlayerWorld w)
+    // playerUpdateWordOfRecall(), in the original order. checkForInterrupt
+    // is the main loop's keypress check that sits between the resting and
+    // hallucination updates (M15: Game.GameRun).
+    public static void UpdateTimedEffects(PlayerWorld w, Action? checkForInterrupt = null)
     {
         UpdateLightStatus(w);
 
@@ -102,8 +104,8 @@ public static class PlayerStatusEffects
         UpdateSpeed(w);
         UpdateRestingState(w);
 
-        // (the original checks for a keypress here to interrupt
-        // repeat/run/rest -- input, M8/M14; headless means no key)
+        // Check for interrupts to find or rest.
+        checkForInterrupt?.Invoke();
 
         UpdateHallucination(w);
         UpdateParalysis(w);
@@ -998,7 +1000,7 @@ public static class PlayerStatusEffects
     // src/game_run.cpp:868 playerUpdateWordOfRecall() -- Note:
     // Word-of-Recall is a delayed action. Only sets the level and
     // dg.generate_new_level; the actual regeneration is playDungeon()'s
-    // caller's job (M16).
+    // caller's job (Game.GameRun.StartMoria(), M15).
     private static void UpdateWordOfRecall(PlayerWorld w)
     {
         var f = w.Py.Flags;

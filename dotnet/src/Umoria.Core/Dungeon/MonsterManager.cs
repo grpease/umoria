@@ -92,6 +92,14 @@ public sealed class MonsterManager
         return levels;
     }
 
+    // src/dungeon_generate.cpp:1152 monsterLinker() -- link all free
+    // space in monster list together (generateCave(), M15)
+    public void Link()
+    {
+        Array.Clear(Monsters);
+        NextFreeMonsterId = MonsterConfig.MonMinIndexId;
+    }
+
     // src/monster_manager.cpp:21 popm() -- returns -1 if could not
     // allocate a monster.
     private int Popm()

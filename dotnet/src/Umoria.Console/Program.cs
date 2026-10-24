@@ -1,91 +1,121 @@
 using Terminal.Gui;
-using Umoria.Console.Bench;
 using Umoria.Console.UI;
-using Umoria.Core.Character;
+using Umoria.Core.Game;
 
 // Umoria.Console: the terminal frontend. The game runs on its own thread,
 // exactly as the original's code runs -- it blocks for keys deep inside its
 // commands (Umoria.Core.Ui) -- while Terminal.Gui owns the real console:
 // TerminalView copies the game's virtual 80x24 screen and queues the keys.
 //
-// Until the main loop is ported (M15), the game thread runs the M14 UI
-// bench (Bench/UiBench.cs). CLI parsing mirrors the relevant subset of
-// src/main.cpp: -s (seed) and -h (help); the bench adds --race / --class /
-// --female / --name for its fixed character answers.
-uint seed = (uint)Environment.TickCount;
-var race = 0;
-var classChoice = 0;
-var isMale = true;
-var name = "Bench";
+// The game is Umoria.Core.Game.GameRun (src/game_run.cpp's startMoria(),
+// M15). Option parsing mirrors src/main.cpp, minus -w (wizard mode is out
+// of the port's scope); --dir and --script are the port's own.
+uint seed = 0;
+var newGame = false;
+var roguelikeKeys = false;
+var showScores = false;
+string? saveGame = null;
+string? gameDirectory = null;
 string? script = null;
 
 for (var i = 0; i < args.Length; i++)
 {
-    switch (args[i])
+    var arg = args[i];
+    switch (arg)
     {
-        case "-s" when i + 1 < args.Length && uint.TryParse(args[i + 1], out var parsedSeed):
-            seed = parsedSeed;
-            i++;
+        case "-v":
+            System.Console.WriteLine(GameFiles.Version);
+            return 0;
+        case "-n":
+            newGame = true;
             break;
-        case "--race" when i + 1 < args.Length && int.TryParse(args[i + 1], out var parsedRace) && parsedRace is >= 0 and <= 7:
-            race = parsedRace;
-            i++;
+        case "-r":
+            roguelikeKeys = true;
             break;
-        case "--class" when i + 1 < args.Length && int.TryParse(args[i + 1], out var parsedClass):
-            classChoice = parsedClass;
-            i++;
+        case "-d":
+            showScores = true;
             break;
-        case "--female":
-            isMale = false;
+        case "-s":
+            // No NUMBER provided?
+            if (i + 1 >= args.Length)
+            {
+                break;
+            }
+
+            if (!int.TryParse(args[++i], out var value) || value <= 0)
+            {
+                System.Console.WriteLine("Game seed must be a decimal number between 1 and 2147483647");
+                return -1;
+            }
+
+            seed = (uint)value;
             break;
-        case "--name" when i + 1 < args.Length:
-            name = args[i + 1];
-            i++;
+        case "--dir" when i + 1 < args.Length:
+            gameDirectory = args[++i];
             break;
         case "--script" when i + 1 < args.Length:
-            script = args[i + 1];
-            i++;
+            script = args[++i];
             break;
-        case "-h":
-        case "--help":
-            System.Console.WriteLine("Umoria.Console (.NET port) -- M14 UI bench");
-            System.Console.WriteLine("  -s SEED       use a fixed RNG seed (default: current tick count)");
-            System.Console.WriteLine("  --race N      race 0-7 (0 Human, 1 Half-Elf, 2 Elf, 3 Halfling, 4 Gnome, 5 Dwarf, 6 Half-Orc, 7 Half-Troll)");
-            System.Console.WriteLine("  --class N     class menu position for that race (0 = first offered)");
-            System.Console.WriteLine("  --female      female character");
-            System.Console.WriteLine("  --name NAME   character name");
-            System.Console.WriteLine("  --script KEYS run headless: type KEYS (~ = ESC, ^x = Ctrl-x, $ = RETURN),");
-            System.Console.WriteLine("                print the screen shown once they run out, and exit");
-            System.Console.WriteLine("  -h            show this help");
-            return;
+        default:
+            if (!arg.StartsWith('-') && saveGame is null)
+            {
+                // SAVEGAME
+                saveGame = arg;
+                break;
+            }
+
+            System.Console.WriteLine("Robert A. Koeneke's classic dungeon crawler.");
+            System.Console.WriteLine($"Umoria {GameFiles.Version} is released under a GPL-3.0-or-later license.");
+            System.Console.WriteLine("""
+
+                Usage:
+                    Umoria.Console [OPTIONS] SAVEGAME
+
+                SAVEGAME is an optional save game filename (default: game.sav)
+
+                Options:
+                    -n           Force start of new game
+                    -r           Enable classic roguelike keys on startup (default: disabled, or save game settings)
+                    -d           Display high scores and exit
+                    -s NUMBER    Game Seed, as a decimal number (max: 2147483647)
+
+                    -v           Print version info and exit
+                    -h           Display this message
+
+                Port options:
+                    --dir DIR    Game directory: data/, LICENSE, the save and score files
+                                 (default: the executable's directory)
+                    --script KEYS  Run headless: type KEYS (~ = ESC, ^x = Ctrl-x, $ = RETURN),
+                                 print the screen shown once they run out, and exit
+                """);
+            return 0;
     }
 }
 
-if (classChoice < 0 || classChoice >= CharacterCreation.AvailableClasses(race).Count)
-{
-    System.Console.WriteLine($"--class must be 0..{CharacterCreation.AvailableClasses(race).Count - 1} for race {race}");
-    return;
-}
+var files = new GameFiles(gameDirectory ?? AppContext.BaseDirectory);
+files.RenderDataTemplates();
 
-var dataDir = FindDataDirectory();
-var choices = new CharacterChoices(race, isMale, classChoice, name);
+void Play(GameRun run)
+{
+    if (saveGame is not null)
+    {
+        run.Save.SaveFilePath = saveGame;
+    }
+
+    if (showScores)
+    {
+        run.ShowScores();
+    }
+    else
+    {
+        run.Run(seed, newGame, roguelikeKeys);
+    }
+}
 
 if (script is not null)
 {
-    // headless: the keys, then end of input (which ends the bench)
-    var scripted = new KeyQueue();
-    for (var k = 0; k < script.Length; k++)
-    {
-        var c = script[k];
-        scripted.Add(c switch
-        {
-            '~' => (char)27,
-            '$' => '\r',
-            '^' when k + 1 < script.Length => (char)(script[++k] & 0x1f),
-            _ => c,
-        });
-    }
-    scripted.Close();
+    // headless: the keys, then end of input
+    var scripted = new ScriptedKeys(script);
 
     // the screen shown when the script runs out (what a player typing those
     // keys would be looking at)
@@ -93,13 +123,13 @@ if (script is not null)
     string[]? shown = null;
     headless.BeforeKeyRead = t => shown ??= scripted.IsDrained ? t.Snapshot() : null;
 
-    new UiBench(headless, seed, choices, dataDir).Run();
+    Play(new GameRun(headless, files));
 
     foreach (var line in shown ?? headless.Snapshot())
     {
         System.Console.WriteLine(line.TrimEnd());
     }
-    return;
+    return 0;
 }
 
 Application.Init();
@@ -110,7 +140,7 @@ try
 {
     var keys = new KeyQueue();
     var terminal = new Umoria.Core.Ui.Terminal(keys);
-    var bench = new UiBench(terminal, seed, choices, dataDir);
+    var run = new GameRun(terminal, files);
 
     var top = new Toplevel();
     var view = new TerminalView(terminal, keys);
@@ -120,7 +150,7 @@ try
     {
         try
         {
-            bench.Run();
+            Play(run);
         }
         catch (Exception e)
         {
@@ -142,9 +172,10 @@ try
 
     Application.Run(top);
 
-    // the window closed first: end the game's input, as an EOF would
+    // the window closed first: end the game's input, as an EOF (a hangup)
+    // would -- the game saves and exits
     keys.Close();
-    gameThread.Join(TimeSpan.FromSeconds(2));
+    gameThread.Join(TimeSpan.FromSeconds(5));
     top.Dispose();
 }
 finally
@@ -155,21 +186,7 @@ finally
 if (gameFailure is not null)
 {
     System.Console.Error.WriteLine(gameFailure);
-    return;
+    return 1;
 }
 
-// The repository's data/ directory (help.txt etc.), looked for upwards from
-// the executable.
-static string FindDataDirectory()
-{
-    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-    {
-        var candidate = Path.Combine(dir.FullName, "data");
-        if (File.Exists(Path.Combine(candidate, "help.txt")))
-        {
-            return candidate;
-        }
-    }
-
-    return Path.Combine(AppContext.BaseDirectory, "data");
-}
+return 0;

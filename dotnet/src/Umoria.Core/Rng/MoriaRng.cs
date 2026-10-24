@@ -17,6 +17,10 @@ public static class MoriaRng
 
     public static uint GetRandomSeed() => _seed;
 
+    // The state at program start (rng.cpp's zero-initialized global), before
+    // seedsInitialize() sets a seed. (M15: Game.GameRun, one per run.)
+    public static void ResetToProgramStart() => _seed = 0;
+
     public static void SetRandomSeed(uint seed)
     {
         _seed = (seed % (M - 1)) + 1;

@@ -535,3 +535,22 @@ list(APPEND ui_screen_dump_source_files
 add_executable(ui_screen_dump ${ui_screen_dump_source_files})
 target_include_directories(ui_screen_dump BEFORE PRIVATE tools/ui_screen_dump/shim)
 set_target_properties(ui_screen_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+#
+# Game loop dump harness: verifies the .NET migration's M15 port of the main
+# loop end to end -- the real startMoria() (character creation, the town,
+# every command, saving, death and scores) on tools/ui_screen_dump's curses
+# shim. helpers.cpp and game.cpp are #included by the harness instead (with
+# the clock fixed and exit() caught), so they're dropped from the target.
+# See tools/game_loop_dump/game_loop_dump.cpp.
+#
+set(game_loop_dump_source_files ${source_files})
+list(REMOVE_ITEM game_loop_dump_source_files ${source_dir}/main.cpp ${source_dir}/helpers.cpp ${source_dir}/game.cpp)
+list(APPEND game_loop_dump_source_files
+        tools/game_loop_dump/game_loop_dump.cpp
+        tools/ui_screen_dump/shim_curses.cpp
+)
+
+add_executable(game_loop_dump ${game_loop_dump_source_files})
+target_include_directories(game_loop_dump BEFORE PRIVATE tools/ui_screen_dump/shim)
+set_target_properties(game_loop_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

@@ -41,8 +41,8 @@ public readonly record struct LoadResult(LoadOutcome Outcome, bool Generate);
 // file name, from_save_file, start_time). The clock is injectable because
 // the original reads the wall clock for the save time and the file's age.
 //
-// Deferred, as SaveFile says: the message history (M14). The stores and
-// loadGame()'s storeMaintenance() calls joined in M13.
+// The stores and loadGame()'s storeMaintenance() calls joined in M13; the
+// message history and the restore/save screen lines in M15.
 public sealed class GameSave
 {
     public GameSave(string saveFilePath = DefaultSaveFile, Func<uint>? clock = null)
@@ -55,8 +55,15 @@ public sealed class GameSave
     public const string DefaultSaveFile = "game.sav";
 
     // config::files::save_game -- saveGame() changes it when the player
-    // names a new file.
+    // names a new file. It is shown as given (the restore and save
+    // messages); a relative name is looked for under Directory. (M15)
     public string SaveFilePath { get; set; }
+
+    // The directory a relative SaveFilePath is in -- the original's working
+    // directory. Null: the process's. (M15)
+    public string? Directory { get; set; }
+
+    private string FullPath(string path) => Directory is null ? path : Path.Combine(Directory, path);
 
     // getCurrentUnixTime()
     public Func<uint> Clock { get; }
@@ -84,9 +91,9 @@ public sealed class GameSave
 
             var deleteFailed = false;
             var deleted = false;
-            if (File.Exists(SaveFilePath) && PlayerCore.GetInputConfirmation(w, "File exists. Delete old save file?"))
+            if (File.Exists(FullPath(SaveFilePath)) && PlayerCore.GetInputConfirmation(w, "File exists. Delete old save file?"))
             {
-                deleted = TryDelete(SaveFilePath);
+                deleted = TryDelete(FullPath(SaveFilePath));
                 deleteFailed = !deleted;
             }
 
@@ -113,7 +120,7 @@ public sealed class GameSave
                 }
             }
 
-            // ("Saving with '...'..." is display.)
+            w.Ui?.PutStringClearToEol($"Saving with '{SaveFilePath}'...", 0, 0);
         }
 
         return true;
@@ -140,6 +147,7 @@ public sealed class GameSave
             return true; // Nothing to save.
         }
 
+        w.Ui?.PutQio();
         PlayerCore.Disturb(w, 1, 0); // Turn off resting and searching.
         PlayerCore.ChangeSpeed(w, -w.Py.Pack.Heaviness); // Fix the speed
         w.Py.Pack.Heaviness = 0;
@@ -150,13 +158,13 @@ public sealed class GameSave
         FileStream? file = null;
         try
         {
-            file = new FileStream(filename, FileMode.CreateNew, FileAccess.Write);
+            file = new FileStream(FullPath(filename), FileMode.CreateNew, FileAccess.Write);
         }
-        catch (IOException) when (File.Exists(filename))
+        catch (IOException) when (File.Exists(FullPath(filename)))
         {
             if (FromSaveFile || (w.Game.WizardMode && PlayerCore.GetInputConfirmation(w, "Can't make new save file. Overwrite old?")))
             {
-                file = TryOpenForOverwrite(filename);
+                file = TryOpenForOverwrite(FullPath(filename));
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -189,7 +197,7 @@ public sealed class GameSave
         {
             if (opened)
             {
-                TryDelete(filename);
+                TryDelete(FullPath(filename));
                 w.Print($"Error writing to file '{filename}'");
             }
             else
@@ -274,6 +282,8 @@ public sealed class GameSave
         c.ObjectsIdentified = (byte[])w.Identification.ObjectsIdentified.Clone();
         c.MagicSeed = game.MagicSeed;
         c.TownSeed = game.TownSeed;
+        c.LastMessageId = w.MessageHistory.LastMessageId;
+        c.Messages = [.. w.MessageHistory.Messages];
         c.PanicSave = game.PanicSave;
         c.NoScore = game.NoScore;
         c.BaseHpLevels = (ushort[])py.BaseHpLevels.Clone();
@@ -368,13 +378,14 @@ public sealed class GameSave
 
         var generate = true;
 
-        if (!File.Exists(SaveFilePath))
+        if (!File.Exists(FullPath(SaveFilePath)))
         {
             w.Print("Save file does not exist.");
             return new LoadResult(LoadOutcome.NoSaveFile, generate);
         }
 
-        // (clearScreen(); "Save file '...' present. Attempting restore.")
+        w.Ui?.ClearScreen();
+        w.Ui?.PutString($"Save file '{SaveFilePath}' present. Attempting restore.", 23, 0);
 
         if (dg.GameTurn >= 0)
         {
@@ -385,7 +396,11 @@ public sealed class GameSave
         SaveFile? save;
         try
         {
-            using var stream = new FileStream(SaveFilePath, FileMode.Open, FileAccess.Read);
+            using var stream = new FileStream(FullPath(SaveFilePath), FileMode.Open, FileAccess.Read);
+
+            w.Ui?.PutStringClearToEol("Restoring Memory...", 0, 0);
+            w.Ui?.PutQio();
+
             save = JsonSerializer.Deserialize<SaveFile>(stream, SaveFileJson.Options);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -472,7 +487,7 @@ public sealed class GameSave
                     return ReadError(w);
                 }
 
-                // ("Attempting a resurrection!")
+                w.Ui?.PutStringClearToEol("Attempting a resurrection!", 0, 0);
                 if (py.Misc.CurrentHp < 0)
                 {
                     py.Misc.CurrentHp = 0;
@@ -505,10 +520,14 @@ public sealed class GameSave
                 w.Print("Restoring Memory of a departed spirit...");
                 dg.GameTurn = -1;
             }
+
+            w.Ui?.PutQio();
         }
         else
         {
-            // ("Restoring Character...")
+            w.Ui?.PutStringClearToEol("Restoring Character...", 0, 0);
+            w.Ui?.PutQio();
+
             if (!RestoreLevel(w, save.Level))
             {
                 return ReadError(w);
@@ -640,6 +659,13 @@ public sealed class GameSave
         c.ObjectsIdentified.CopyTo(w.Identification.ObjectsIdentified, 0);
         game.MagicSeed = c.MagicSeed;
         game.TownSeed = c.TownSeed;
+
+        if (c.Messages.Length == Ui.MessageHistory.Size && c.LastMessageId >= 0 && c.LastMessageId < Ui.MessageHistory.Size)
+        {
+            w.MessageHistory.LastMessageId = c.LastMessageId;
+            c.Messages.CopyTo(w.MessageHistory.Messages, 0);
+        }
+
         game.PanicSave = c.PanicSave;
         game.NoScore = c.NoScore;
         c.BaseHpLevels.CopyTo(py.BaseHpLevels, 0);

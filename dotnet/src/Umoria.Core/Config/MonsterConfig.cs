@@ -12,6 +12,9 @@ public static class MonsterConfig
     public const int MonMultiplyAdjust = 7; // High value slows multiplication (M9)
     public const int MonChanceOfNasty = 50; // 1/x chance of high level creature
     public const int MonMinPerLevel = 14; // Minimum number of monsters/level
+    public const int MonChanceOfNew = 160; // 1/x chance of new monster each round (M15)
+    public const int MonMinTownsfolkDay = 4; // Number of people on town level (day) (M15)
+    public const int MonMinTownsfolkNight = 8; // Number of people on town level (night) (M15)
     public const int MonEndgameMonsters = 2; // Total number of "win" creatures
     public const int MonSummonedLevelAdjust = 2; // Adjust level of summoned creatures (M8)
     public const int MonPlayerExpDrainedPerHit = 2; // Percent of player exp drained per hit (M9)

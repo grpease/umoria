@@ -5,8 +5,10 @@ using Umoria.Core.Rng;
 namespace Umoria.Core.Dungeon;
 
 // Port of src/dungeon_generate.cpp's dungeonGenerate() and the helpers it
-// needs. As of M4 this is a faithful port of everything dungeonGenerate()
-// does except the vault branch:
+// needs, plus (M15) the town: townGeneration()'s stores, stairs and
+// day/night lighting (GenerateTown; generateCave()'s reset around both is
+// Game.GameRun's). As of M4 this is a faithful port of everything
+// dungeonGenerate() does except the vault branch:
 //
 //   INCLUDED (faithfully ported, same RNG call sequence as the C++):
 //     - plain rectangular rooms (dungeonBuildRoom) and the "overlapping
@@ -63,8 +65,10 @@ public sealed class DungeonGenerator
     }
 
     // Port of generateCave()'s dungeon-level branch (current_level >= 1).
-    // Town generation (current_level == 0) is out of scope for this POC.
-    public Coord Generate(int level)
+    // The town (current_level == 0) is GenerateTown (M15). playerSpeed is
+    // py.flags.speed, which every monster placed takes on (M15: the
+    // POC-era callers pass 0, a new character's speed).
+    public Coord Generate(int level, int playerSpeed = 0)
     {
         _dg.CurrentLevel = level;
         _dg.Height = DungeonConstants.MaxHeight;
@@ -74,7 +78,150 @@ public sealed class DungeonGenerator
 
         BlankEntireCave();
 
-        return BuildDungeonLevel();
+        return BuildDungeonLevel(playerSpeed);
+    }
+
+    // generateCave()'s town branch (current_level == 0): src/dungeon_generate.cpp:1220
+    // townGeneration(), minus its last call, storeMaintenance() -- the
+    // caller's (GameRun.GenerateCave), since the stores live above the
+    // dungeon. Returns the player's spot. (M15)
+    public Coord GenerateTown(uint townSeed, int gameTurn, int playerSpeed)
+    {
+        _dg.CurrentLevel = 0;
+        _dg.Height = DungeonConstants.ScreenHeight;
+        _dg.Width = DungeonConstants.ScreenWidth;
+        ScreenPanel.InitializeForLevel(_dg);
+
+        BlankEntireCave();
+
+        // seedSet(game.town_seed) -- the town looks the same every visit
+        var oldSeed = MoriaRng.GetRandomSeed();
+        MoriaRng.SetRandomSeed(townSeed);
+
+        PlaceTownStores();
+
+        FillEmptyTilesWith(TileConstants.TileDarkFloor);
+
+        // make stairs before seedResetToOldSeed, so that they don't move around
+        PlaceBoundaryWalls();
+        PlaceStairs(2, 1, 0);
+
+        // seedResetToOldSeed() (which re-applies setRandomSeed() to the
+        // saved state, as the original does)
+        MoriaRng.SetRandomSeed(oldSeed);
+
+        // Set up the character coords, used by monsterPlaceNewWithinDistance below
+        var playerStart = NewSpot();
+
+        LightTown(gameTurn, playerStart, playerSpeed);
+
+        return playerStart;
+    }
+
+    // src/dungeon_generate.cpp:1108 dungeonBuildStore() -- builds a store at
+    // a row, column coordinate
+    private void BuildStore(int storeId, Coord coord)
+    {
+        var yval = coord.Y * 10 + 5;
+        var xval = coord.X * 16 + 16;
+        var height = yval - RandomNumber.Next(3);
+        var depth = yval + RandomNumber.Next(4);
+        var left = xval - RandomNumber.Next(6);
+        var right = xval + RandomNumber.Next(6);
+
+        int y, x;
+
+        for (y = height; y <= depth; y++)
+        {
+            for (x = left; x <= right; x++)
+            {
+                _dg.Floor[y, x].FeatureId = TileConstants.TileBoundaryWall;
+            }
+        }
+
+        var tmp = RandomNumber.Next(4);
+        if (tmp < 3)
+        {
+            y = RandomNumber.Next(depth - height) + height - 1;
+
+            x = tmp == 1 ? left : right;
+        }
+        else
+        {
+            x = RandomNumber.Next(right - left) + left - 1;
+
+            y = tmp == 3 ? depth : height;
+        }
+
+        _dg.Floor[y, x].FeatureId = TileConstants.TileCorrFloor;
+
+        var curPos = _treasure.Popt();
+        _dg.Floor[y, x].TreasureId = (byte)curPos;
+
+        _treasure[curPos] = InventoryCatalog.CopyFromCatalog(DungeonGenerationConfig.Objects.ObjStoreDoor + storeId);
+    }
+
+    // src/dungeon_generate.cpp:1167 dungeonPlaceTownStores()
+    private void PlaceTownStores()
+    {
+        var rooms = new int[6];
+        for (var i = 0; i < 6; i++)
+        {
+            rooms[i] = i;
+        }
+
+        var roomsCount = 6;
+
+        for (var y = 0; y < 2; y++)
+        {
+            for (var x = 0; x < 3; x++)
+            {
+                var roomId = RandomNumber.Next(roomsCount) - 1;
+                BuildStore(rooms[roomId], new Coord(y, x));
+
+                for (var i = roomId; i < roomsCount - 1; i++)
+                {
+                    rooms[i] = rooms[i + 1];
+                }
+
+                roomsCount--;
+            }
+        }
+    }
+
+    // src/dungeon_generate.cpp:1190 isNighTime()
+    private static bool IsNightTime(int gameTurn) => (0x1 & (gameTurn / 5000)) != 0;
+
+    // src/dungeon_generate.cpp:1194 lightTown() -- light town based on
+    // whether it is Night time, or day time.
+    private void LightTown(int gameTurn, Coord playerPos, int playerSpeed)
+    {
+        if (IsNightTime(gameTurn))
+        {
+            for (var y = 0; y < _dg.Height; y++)
+            {
+                for (var x = 0; x < _dg.Width; x++)
+                {
+                    if (_dg.Floor[y, x].FeatureId != TileConstants.TileDarkFloor)
+                    {
+                        _dg.Floor[y, x].PermanentLight = true;
+                    }
+                }
+            }
+            _monsters.PlaceNewWithinDistance(MonsterConfig.MonMinTownsfolkNight, 3, true, playerPos, playerSpeed);
+        }
+        else
+        {
+            // ...it is day time
+            for (var y = 0; y < _dg.Height; y++)
+            {
+                for (var x = 0; x < _dg.Width; x++)
+                {
+                    _dg.Floor[y, x].PermanentLight = true;
+                }
+            }
+            _monsters.PlaceNewWithinDistance(MonsterConfig.MonMinTownsfolkDay, 3, true, playerPos, playerSpeed);
+        }
     }
 
     // src/dungeon_generate.cpp:62 dungeonBlankEntireCave()
@@ -90,7 +237,7 @@ public sealed class DungeonGenerator
     }
 
     // src/dungeon_generate.cpp:995 dungeonGenerate(), scoped per the class comment above.
-    private Coord BuildDungeonLevel()
+    private Coord BuildDungeonLevel(int playerSpeed)
     {
         var rowRooms = 2 * (_dg.Height / DungeonConstants.ScreenHeight);
         var colRooms = 2 * (_dg.Width / DungeonConstants.ScreenWidth);
@@ -197,11 +344,7 @@ public sealed class DungeonGenerator
             allocLevel = 10;
         }
 
-        // playerSpeedFlag: 0, matching py.flags.speed's zero-initialized
-        // value -- no Player singleton exists yet (M1 only modeled the
-        // shape; see MonsterManager's class comment) and nothing in this
-        // scoped generator can have changed it from its startup default.
-        _monsters.PlaceNewWithinDistance(RandomNumber.Next(8) + MonsterConfig.MonMinPerLevel + allocLevel, 0, true, playerStart, 0);
+        _monsters.PlaceNewWithinDistance(RandomNumber.Next(8) + MonsterConfig.MonMinPerLevel + allocLevel, 0, true, playerStart, playerSpeed);
 
         _objects.AllocateAndPlaceObject(IsSetCorridors, 3, RandomNumber.Next(allocLevel), playerStart);
         _objects.AllocateAndPlaceObject(IsSetRooms, 5, RandomNumber.NextNormal(DungeonGenerationConfig.Objects.LevelObjectsPerRoom, 3), playerStart);

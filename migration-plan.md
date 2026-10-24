@@ -36,7 +36,7 @@ generation (initially feared otherwise).
 - [x] M12 — Save/load (JSON)
 - [x] M13 — Stores/economy
 - [x] M14 — Full UI *(core UI layer ported + screen-traced byte-for-byte via tools/ui_screen_dump (fake curses); Terminal.Gui frontend + temporary UI bench; bolt/throw animations deferred; manual terminal check pending)*
-- [ ] M15 — Main loop integration
+- [x] M15 — Main loop integration *(startMoria/playDungeon/commands/endGame/town/creation screens ported; end-to-end trace via tools/game_loop_dump, 10 scenarios byte-for-byte; manual terminal playtest pending)*
 
 ## How each milestone gets verified                                                                                
 																											  
@@ -774,6 +774,41 @@ panelMoveCursor(py.pos) + message_ready_to_print = false (GameUi.ClearMessageRea
 printCharacter*() calls in the loop itself; GameUi.EndOfInput for the EOF save; the character creation screens;
 carry PlayerWorld.MessageHistory in the save file (svWrite()'s last_message_id + messages[]); a non-blocking read on
 IKeySource for checkForNonBlockingKeyPress() (interrupting rest/run).
+
+- Done (M15): Umoria.Core/Game -- GameRun (game_run.cpp: startMoria(), seedsInitialize(), generateCave()'s reset,
+playDungeon(), executeInputCommands()/originalCommands()/doCommand()/validCountCommand(), the repeat count and
+'^' control entry, and the commands that live in game_run.cpp: quit, save-and-exit, search toggle, rest, browse,
+stairs, jam door, refill lamp), GameRun.Death (game_death.cpp: endGame(), the tombstone and character record,
+kingly()), GameFiles (config::files, the splash/versions templates, an empty score file in place of main()'s
+"can't open score file"), and GameClock (the wall clock, injectable). Town generation joined DungeonGenerator
+(GenerateTown); the monster placement it and the dungeon do now take py.flags.speed (the POC hard-coded 0).
+GameUi gained the character creation screens (Creation.cs -- M6's steps, run between the original's prompts),
+look/identify-symbol/options (Look.cs), the EOF endGame()/panic-save path in getKeyInput(), and the non-blocking
+read behind flushInputBuffer() and the rest/run interrupt (IKeySource.TryReadKey). The save file carries the
+message history, and GameSave shows the original's restore/save lines. PlayerCore gained getAllDirections() and
+the roguelike direction keys. Umoria.Console runs GameRun with main.cpp's options (-n -r -d -s, SAVEGAME; plus
+--dir and --script); the M14 bench is gone.
+- Verified: tools/game_loop_dump runs the REAL startMoria() on tools/ui_screen_dump's shim (keys from the script,
+then end of input), with helpers.cpp and game.cpp #included so the clock is fixed and exit() is caught; zero src/
+changes. Each run is its own process (the globals only start fresh with one); a scenario is one or more runs in one
+game directory, so a save made in one is restored by the next -- each side its own format, compared through what
+the restore shows. State line + screen (or "same") at every key read. 10 scenarios (game_loop_scenarios.inc,
+shared with GameLoopTraceTests): creation menus with help and bad keys, every free screen command, shopping and
+descending, save/restore over three runs, quit -> tombstone -> character record -> scores, mage and priest
+spells, roguelike keys via '=', repeat counts, and a 1100-turn rest on level 1 (store maintenance, new monsters,
+combat). ~11k lines byte-for-byte; 78 tests pass; ui_screen_dump's baseline regenerates identical.
+- Findings (all fixed): objectDescription()'s '@' returns py.misc.name, not a literal -- the first extraction
+dropped it and '@' fell through to 'A' (the extractor now fails on any unknown non-literal return);
+playerGainSpells() forms &magic_spells[class_id - 1] for a warrior but never dereferences it (the port indexed
+[-1] eagerly and threw); a spell-casting class's generateCharacterClass() prints "You can learn some new
+prayers/spells now." through playerSetAndUseStat() (M6's creation dropped it); dg.generate_new_level starts true
+and next_free_monster_id at 0 (until the first level).
+- Deferred / not ported: wizard mode (^W prints that it isn't part of the port; no -w), monster recall (look's
+'r' and '/'s "You recall those details?" show a placeholder screen), the bolt/throw animations (M14), the
+vault room types and monsterPlaceWinning() (the POC's dungeon deferral -- levels past 1 can now be reached in
+play, and there the port's level layouts can differ from the original's), and night-time town generation is
+ported but not traced (no scenario returns to the town at night). Manual playtesting in a real terminal is the
+remaining acceptance gate.
 
 Out of scope for the whole roadmap: wizard.cpp (debug commands), recall.cpp (monster-memory text, could be      
 picked up opportunistically alongside M0 if desired), original binary save format.                              
