@@ -23,6 +23,13 @@
 // that the comment claimed it but the code didn't, which no earlier harness
 // could notice: none of them ever has a nonzero count at a prompt).
 //
+// M12 added an opt-in log of putStringClearToEOL() lines (uiStubSetScreenLog)
+// for the score screen's table.
+//
+// M13 added, for the store, an opt-in putString() log (on the same screen
+// log) and a scripted list of getStringInput() lines, <ESCAPE> included --
+// a haggle reads several offers in one command.
+//
 // M11 added an opt-in message log (uiStubSetMessageLog) so the item-use
 // harness can compare message text, a scripted answer for
 // getInputConfirmationWithAbort(), and the command_count zeroing of that
@@ -97,9 +104,28 @@ void moveCursor(Coord_t /*coord*/) {}
 
 void addChar(char /*ch*/, Coord_t /*coord*/) {}
 
-void putString(const char * /*out_str*/, Coord_t /*coord*/) {}
+static std::vector<std::string> *screen_log = nullptr;
+static bool screen_log_put_string = false;
 
-void putStringClearToEOL(const std::string & /*str*/, Coord_t /*coord*/) {}
+void uiStubSetScreenLogPutString(bool enabled) {
+    screen_log_put_string = enabled;
+}
+
+void putString(const char *out_str, Coord_t coord) {
+    if (screen_log != nullptr && screen_log_put_string) {
+        screen_log->push_back(std::to_string(coord.y) + "," + std::to_string(coord.x) + "=\t" + out_str);
+    }
+}
+
+void uiStubSetScreenLog(std::vector<std::string> *log) {
+    screen_log = log;
+}
+
+void putStringClearToEOL(const std::string &str, Coord_t coord) {
+    if (screen_log != nullptr) {
+        screen_log->push_back(std::to_string(coord.y) + "," + std::to_string(coord.x) + "\t" + str);
+    }
+}
 
 void eraseLine(Coord_t /*coord*/) {}
 
@@ -147,11 +173,33 @@ bool getMenuItemId(const std::string &prompt, char &command) {
     return getCommand(prompt, command);
 }
 
+static const std::vector<std::string> *string_script = nullptr;
+static size_t string_script_pos = 0;
+
+void uiStubSetStringScript(const std::vector<std::string> *lines) {
+    string_script = lines;
+    string_script_pos = 0;
+}
+
+size_t uiStubStringsConsumed() {
+    return string_script_pos;
+}
+
 // Mirrors the real getStringInput()'s only side effect on game state:
 // copying the entered text (trailing blanks removed) into in_str.
 bool getStringInput(char *in_str, Coord_t /*coord*/, int slen) {
     game.command_count = 0; // via getKeyInput()
     std::string name = scripted_name;
+    if (string_script != nullptr) {
+        if (string_script_pos >= string_script->size()) {
+            std::fprintf(stderr, "ui_io_stub: getStringInput() called with the string script exhausted\n");
+            std::exit(2);
+        }
+        name = (*string_script)[string_script_pos++];
+        if (name == std::string(1, (char) ESCAPE)) {
+            return false;
+        }
+    }
     while (!name.empty() && name.back() == ' ') {
         name.pop_back();
     }

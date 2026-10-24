@@ -171,6 +171,15 @@ public static class PlayerCore
     // from the PlayerWorld.SelectItem hook, given the effective range. (M10)
     public static bool GetItemId(PlayerWorld w, string prompt, int itemIdStart, int itemIdEnd, out int itemId)
     {
+        return GetItemId(w, prompt, itemIdStart, itemIdEnd, null, null, out itemId);
+    }
+
+    // The same, with the original's `mask` and `message` arguments (the
+    // store's sell command): a slot outside the range, or whose mask entry
+    // is false, is refused -- `message` is printed (or the bell rung,
+    // without one) and another choice read. (M13)
+    public static bool GetItemId(PlayerWorld w, string prompt, int itemIdStart, int itemIdEnd, bool[]? mask, string? message, out int itemId)
+    {
         var py = w.Py;
         itemId = 0;
 
@@ -183,25 +192,52 @@ public static class PlayerCore
 
         if (py.Pack.UniqueItems < 1 && (!packFull || py.EquipmentCount < 1))
         {
-            // ("You are not carrying anything." -- putStringClearToEOL(),
-            // display only)
+            w.ScreenWrite?.Invoke(0, 0, "You are not carrying anything.", true);
             return false;
         }
 
         // (choosing from the equipment list when the pack is empty maps the
         // letter to the n-th worn item; that menu is the UI's, M14)
+        var inventoryMenu = !packFull || py.Pack.UniqueItems != 0;
 
         w.Game.CommandCount = 0;
 
-        var chosen = w.SelectItem(prompt, itemIdStart, itemIdEnd);
-        if (chosen is null)
+        while (true)
         {
-            w.Game.PlayerFreeTurn = true;
-            return false;
-        }
+            // the prompt line, redrawn after a refused choice (M13: the
+            // store screen's text goes through PlayerWorld.ScreenWrite; the
+            // '*' list and '/' switch are the UI's, so this is the line
+            // before either)
+            if (w.ScreenWrite is not null)
+            {
+                var digits = inventoryMenu ? " 0-9," : "";
+                var description = packFull
+                    ? $"({(inventoryMenu ? "Inven" : "Equip")}: {(char)(itemIdStart + 'a')}-{(char)(itemIdEnd + 'a')},{digits} * to see, / for {(inventoryMenu ? "Equip" : "Inven")}, or ESC) {prompt}"
+                    : $"(Items {(char)(itemIdStart + 'a')}-{(char)(itemIdEnd + 'a')},{digits} * for inventory list, ESC to exit) {prompt}";
+                w.ScreenWrite(0, 0, Helpers.Truncate(description, Helpers.MoriaMessageSize), true);
+            }
 
-        itemId = chosen.Value;
-        return true;
+            var chosen = w.SelectItem(prompt, itemIdStart, itemIdEnd);
+            if (chosen is null)
+            {
+                w.Game.PlayerFreeTurn = true;
+                return false;
+            }
+
+            // (a slot outside the range is refused like a masked one -- the
+            // original prints `message` for either)
+            if (chosen.Value >= itemIdStart && chosen.Value <= itemIdEnd && (mask is null || mask[chosen.Value]))
+            {
+                itemId = chosen.Value;
+                return true;
+            }
+
+            if (message is not null)
+            {
+                PrintMessage(w, message);
+            }
+            // (else terminalBellSound())
+        }
     }
 
     // src/game.cpp:262 getDirectionWithMemory() -- prompts for a direction

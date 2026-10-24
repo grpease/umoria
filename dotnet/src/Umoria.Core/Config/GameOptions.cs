@@ -28,4 +28,19 @@ public sealed class GameOptions
 
     // Prompt to pick something up
     public bool PromptToPickup { get; set; } = false;
+
+    // The rest are only read by the UI (M14), but the save file stores them
+    // (M12).
+
+    // Display rest/repeat counts
+    public bool DisplayCounts { get; set; } = true;
+
+    // Use classic Roguelike keys
+    public bool UseRoguelikeKeys { get; set; } = false;
+
+    // Display weights in inventory
+    public bool ShowInventoryWeights { get; set; } = false;
+
+    // Beep for invalid characters
+    public bool ErrorBeepSound { get; set; } = true;
 }

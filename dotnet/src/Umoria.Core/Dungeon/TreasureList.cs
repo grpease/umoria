@@ -82,7 +82,7 @@ public sealed class TreasureList
     public const int LevelMaxObjects = GameConstants.LevelMaxObjects;
 
     public Inventory[] List { get; } = new Inventory[LevelMaxObjects];
-    public int CurrentId { get; private set; } = TreasureConfig.MinTreasureListId;
+    public int CurrentId { get; internal set; } = TreasureConfig.MinTreasureListId;
 
     public ref Inventory this[int id] => ref List[id];
 

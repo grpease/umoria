@@ -33,8 +33,8 @@ generation (initially feared otherwise).
 - [x] M9 — Monster AI & melee combat, together with damage-spell primitives
 - [x] M10 — Remaining spell effects + casting layer
 - [x] M11 — Items/inventory/identification
-- [ ] M12 — Save/load (JSON)
-- [ ] M13 — Stores/economy
+- [x] M12 — Save/load (JSON)
+- [x] M13 — Stores/economy
 - [ ] M14 — Full UI *(partial: minimal walkable Terminal.Gui loop exists from the POC; inventory/character/store/message-log screens not started)*
 - [ ] M15 — Main loop integration
 
@@ -317,7 +317,7 @@ the test records exceptions inline so the diff pins them.
   - Corroding gas, fire and acid traps: damageCorrodingGas()/damageFire()/damageAcid() destroy pack items
     (inventoryDamageItem(), inventoryDestroyItem(): M11) and are the same primitives monster breath uses -- M9's
     damage-spell slice (throw, tested). The poison gas trap's damagePoisonedGas() is self-contained and ported.
-  - The town's store entrances: storeEnter(), M13 (throws).
+  - The town's store entrances: storeEnter(), M13 (threw until M13; now Stores.StoreCommands.Enter).
   - Message and prompt text that describes a real item (pickup, "You have found <trap>", the pickup prompts):
     itemDescription(), M11. The messages still zero command_count; only the text is missing.
   - Hallucination: running's glyph lookups draw exactly the C++ RNG, but every move also redraws through
@@ -543,32 +543,153 @@ per-game copies on ObjectIdentification.
     ObjectIdentification.MagicInitializeItemNames(game.magic_seed) after character creation, as startMoria() does
     (seedsInitialize() isn't ported yet).
 
-### M12 — Save/load (JSON)                                                                                          
-																											  
-- Scope: new JSON-based format per the earlier compatibility-breaking decision (not porting game_save.cpp's XOR 
-binary format), game_files.cpp, scores.cpp.                                                                   
-- Size: M. Depends on: M1, M6 (needs a complete-enough state to serialize meaningfully) — low RNG coupling, so  
-flexible on exact timing.                                                                                     
-- Verify: round-trip test (serialize, deserialize, assert struct equality) — no C++ baseline needed since the   
-format is intentionally new.                                                                                  
-- Defer: original save-file compatibility, by prior decision.                                                   
-																											
-- From M11: game.magic_seed, objects_identified[] and item inscriptions must be saved; the flavour names are
-re-derived from the seed (ObjectIdentification.MagicInitializeItemNames), not saved.
+### M12 — Save/load (JSON)
 
-### M13 — Stores/economy                                                                                            
-																											  
-- Scope: store.cpp (1202), store_inventory.cpp (374).                                                           
-- Size: M-L. Depends on: M3 (confirmed: store_inventory.cpp:354 calls magicTreasureMagicalAbility directly),    
-M11 (inventory), M0 (store data tables).                                                                      
-- Verify: store inventory generation is RNG-sequenced and golden-traceable; buy/sell transactions are simple    
-arithmetic, unit-testable without RNG.                                                                        
-- Defer: none known; check whether store restocking shares RNG draws with anything running concurrently         
-mid-dungeon-turn before finalizing the harness design.                                                        
-- From M8: stepping onto a town store entrance (PlayerTraps.StepsOnTrap, sub_category 101-106) throws until
-storeEnter() exists.
-																											
-- From M11: inventoryTakeOneItem() (store buy/sell only) is not ported; item descriptions and identification are.
+- Scope: new JSON-based format per the earlier compatibility-breaking decision (not porting game_save.cpp's XOR
+  binary format), game_files.cpp, scores.cpp.
+- Size: M. Depends on: M1, M6 (needs a complete-enough state to serialize meaningfully) -- low RNG coupling, so
+  flexible on exact timing.
+- Done -- Umoria.Core.Persistence.GameSave / SaveFile (save/load), HighScores (scores.cpp), CharacterSheet
+  (game_files.cpp's character file), plus Items.ItemValue (storeItemValue(), pulled forward from M13).
+- Format: SaveFile holds exactly what svWrite() writes, grouped the way svWrite() orders it -- monster memories and
+  options (always restored), the character (skipped for a dead one), the level (absent for a dead one, which is how
+  loadGame() tells a resurrection apart). The player's misc/stats/flags blocks are serialized whole (svWrite() writes
+  every field of them); tiles are svWrite()'s packed byte as two hex digits, one string per row; byte arrays are number
+  arrays, not base64. The scoreboard is a JSON list (HighScoreFile), highest first.
+- Real call graph (read, not assumed):
+  - The logic around the bytes is game logic, and it's ported as written: saveChar()'s pre-save cleanup
+    (playerDisturb(1, 0), playerChangeSpeed(-heaviness)); the file rules (O_EXCL -- never replace a file this game
+    didn't load unless a wizard agrees; saveGame()'s delete-or-rename retry loop); svWrite()'s hangup rule (eof_flag
+    clears character_is_dead); svWrite() saving playerCalculateTotalPoints() into the max_score slot; loadGame()'s
+    dead / resurrect / retired paths and its post-restore fixups (weapon_is_heavy, heaviness, playerStrength(),
+    "(alive and well)", character_generated).
+  - saveChar() draws randomNumber(256) for the XOR key. Meaningless for JSON, but kept so the RNG stream after a save
+    (a failed one plays on) stays the original's.
+  - The RNG state is NOT saved by the original: a restored game continues from startMoria()'s fresh
+    seedsInitialize(). magic_seed and town_seed are saved; the flavour names are re-derived from the former.
+  - playerCalculateTotalPoints() needs storeItemValue() (store_inventory.cpp, M13's file). It's pure (no RNG, no store
+    state), so it moved into Items.ItemValue now; M13 reuses it.
+  - New state: GameState.TownSeed, CharacterGenerated, CharacterSaved, WizardMode, ToBeWizard, NoScore, PanicSave,
+    EofFlag; GameOptions.DisplayCounts, UseRoguelikeKeys, ShowInventoryWeights, ErrorBeepSound (the four the save
+    file stores that no ported code read yet). game_save.cpp's file statics (save file name, from_save_file,
+    start_time) live on the GameSave instance; the clock is injectable.
+  - Quirks kept: loadGame()'s `(!game.noscore) & 0x04` is never true, so "already on the scoreboard" never prints;
+    recordNewHighScore() strips a leading "a"/"an" by testing only the first letters ("ant lion" -> "t lion"); the
+    score file cap only limits how far down an entry can land, it never trims the file. Not kept: loadGame()'s
+    off-by-one coordinate check (`x > MAX_WIDTH`), and HighScore_t's fixed name/died_from buffers (strcpy overflowed
+    on a cause of death over 24 characters).
+- Verify -- tools/persistence_dump (M11's stub pattern, zero changes to src/; the stub gained an opt-in log of
+  putStringClearToEOL() lines). The JSON files have no counterpart, so it compares everything the original defines
+  around them, in four sections, each its own C# test (PersistenceTraceTests):
+  - storeItemValue() for all 420 catalog objects in 10 identification states (4,200 lines);
+  - outputPlayerCharacterToFile()'s text and playerCalculateTotalPoints() for 63 created characters in four variants
+    (worn kit, stats over 18, level 40 / over 40, empty equipment and pack, negative skills), plus the
+    replace-existing-file prompt;
+  - recordNewHighScore() over 17 scenarios from a shared tools/persistence_dump/score_scenarios.inc (ties,
+    "(saved)" duplicates above and below, the shift that drops a duplicate, articles, noscore and panic, 45 entries
+    over three pages), reading the file back and capturing showScoresScreen()'s lines;
+  - a saveGame() -> fresh-process reset -> loadGame() round trip in 9 scenarios (alive, dead, hangup, resurrect,
+    resurrect declined, retired, winner, panic save, wizard), dumping the full restored state, messages and RNG
+    state, so the port must save and restore exactly the same fields and apply the same fixups.
+  ~13.4k lines; the first three sections matched byte-for-byte on the first run. The round trip differed in one way:
+  a fresh Game_t{} has treasure.current_id 0 until treasureLinker() runs, while TreasureList starts linked -- never
+  observable in play (generateCave() links first), so the harness's reset links it. Mutate-and-restore checks on both
+  sides: a baseline copy edit fails one line; dropping TownSeed from the restore fails all six full restores. Every
+  older stub baseline regenerates byte-identical. GameSaveTests covers what has no C++ counterpart: the JSON shape,
+  version and bounds checks, damaged files, the overwrite/rename rules, the store-maintenance day count, the score
+  cap. 67 tests pass.
+- Not ported: the rest of game_files.cpp -- initializeScoreFile() (file opening; HighScores reads on demand),
+  displaySplashScreen() / displayTextHelpFile() / displayDeathFile() (text pagers, M14), outputRandomLevelObjectsToFile()
+  (a wizard command, out of scope with wizard.cpp).
+- Defer:
+  - To M13: the stores' save state (owner, counters, inventory -- svWrite() writes them; add a `stores` section to
+    SaveFile) and loadGame()'s storeMaintenance() calls (GameSave.PendingStoreMaintenanceDays holds the count).
+  - To M14: the message history (last_message_id, messages[] -- saved by svWrite(); the port has no history yet); the
+    score screen's paging and keys around HighScores.FormatScoreLine; the restore status lines; the text-file pagers.
+  - To M15: see M15's "From M12".
+
+### M13 — Stores/economy
+
+- Scope: store.cpp (1202), store_inventory.cpp (374).
+- Size: M-L. Depends on: M3 (confirmed: store_inventory.cpp:354 calls magicTreasureMagicalAbility directly),
+M11 (inventory), M0 (store data tables).
+- Done -- Umoria.Core.Stores.Store (Store_t / InventoryRecord_t), StoreInventory (store_inventory.cpp: storeMaintenance(),
+  storeItemSellPrice(), storeCheckPlayerItemsCount(), storeCarryItem(), storeDestroyItem(), storeItemCreate()) and
+  StoreCommands (store.cpp: storeInitializeOwners(), storeEnter() and everything under it -- buying, selling, haggling,
+  insults, the store screen's text). Config.StoreConfig holds store.h's and config::stores' constants. The data tables
+  (owners, speech, store_choices, race_gold_adjustments) were already extracted by M0. Also added:
+  Items.InventoryActions.TakeOneItem (inventoryTakeOneItem(), M11's deferral), Helpers.InsertNumberIntoString /
+  StringToNumber, and a mask/message overload of PlayerCore.GetItemId.
+- Real call graph (read, not assumed):
+  - Restocking shares the game RNG and the treasure list: storeItemCreate() borrows a game.treasure.list slot
+    (popt()/pusht()) and runs magicTreasureMagicalAbility() at LEVEL_TOWN_OBJECTS, so missiles_counter moves too. The
+    callers are townGeneration() (every town visit), playDungeon() (every 1000 turns below the town) and loadGame()
+    (once per day of save-file age) -- nothing runs concurrently with it mid-turn, which answers the roadmap's question.
+  - Haggling is game logic all the way down: owner comments are random picks, each counter-offer draws
+    randomNumber(5), insults and the good/bad purchase record persist in the store (and the save file), and being
+    thrown out closes the store until game_turn + 2500 + randomNumber(2500). Every prompt reads through getKeyInput(),
+    so each zeroes command_count. store.cpp's file-static store_last_increment lives on PlayerWorld.StoreLastIncrement.
+  - inventoryGetInputForItemId()'s mask path prints its message for an out-of-range letter as well as a masked one
+    ("I do not buy such items." for either), so GetItemId now range-checks the slot the SelectItem hook returns instead
+    of trusting the hook to filter (older callers' hooks never return one out of range, so nothing else changes).
+  - storeEnter() ends in drawCavePanel() (PY_STUDY upkeep, PlayerCore.DrawCavePanel) and its i/e/t/w/x keys run the
+    real inventory commands until none is left open (Items.InventoryCommands).
+  - The store screen's text is computed state (prices are charisma-adjusted at display time, "[Fixed]" after a sale,
+    paging between the two halves of the stock decides which letter buys what), so it goes through a new
+    PlayerWorld.ScreenWrite sink: the store's putString()/putStringClearToEOL() lines plus GetItemId's prompt line.
+    Drawing them is M14's.
+  - Quirks kept as written: storeGetHaggle()'s `increment` isn't reset between re-prompts (an empty line with no
+    increment set, then "7", adds 7 rather than offering 7); "0" or non-numbers re-prompt; stringToNumber() leaves the
+    old value on bad input; displaySingleCost() prints a haggled price without displayStoreInventory()'s clamp or field
+    width; storeCheckPlayerItemsCount() checks the store's room despite its name; a "Final Offer" clamp is effectively
+    only reachable from the good-bargainer shortcut (a counter-offer can't drop below the player's own offer).
+  - startMoria()'s priceAdjust() is a no-op and isn't ported: its `#if (COST_ADJUSTMENT != 100)` tests a constexpr the
+    preprocessor reads as 0, so the loop is compiled, but (cost * 100 + 50) / 100 leaves every catalog cost unchanged
+    (none is negative; checked over all 420).
+  - Not modelled: text typed before <ESCAPE> at an offer prompt (the original leaves it in the buffer, which the parser
+    then reads; the ReadString hook returns a whole line or null). stringToNumber()'s range is a 32-bit long's, as on
+    the MSVC build the baselines come from.
+- Save file (M12's deferral): SaveFile.Character.Stores holds all six stores as svWrite() writes them (counters, then
+  the stocked slots only), between the hit-point table and the save time; LoadGame bounds-checks them (six stores, at
+  most 24 slots each, loadGame()'s "goto error") and now really runs StoreInventory.Maintenance once per day of file
+  age (GameSave.StoreMaintenanceDays, renamed from PendingStoreMaintenanceDays, reports how many).
+- Verify -- tools/store_dump (M11's stub pattern, zero changes to src/; the stub gained a list of scripted
+  getStringInput() lines, <ESCAPE> included, and an opt-in putString() log), three sections, each its own C# test
+  (StoreTraceTests):
+  - maint: storeInitializeOwners() and twelve days of storeMaintenance() from four seeds -- owners, every store's full
+    stock (cost, item fields, description) and the RNG/treasure state after each day (4,335 lines);
+  - price: storeItemSellPrice() for all 420 catalog objects at each of the 18 owners (7,578 lines);
+  - scenario: 37 scripted visits to the real storeEnter() from tools/store_dump/store_scenarios.inc (shared with the C#
+    test): buying with and without haggling, exact/over/under offers, the first-offer rules, the RETURN quirk, liar and
+    kicked-out, the good-bargainer shortcut and its "Final Offer" rejection, a full pack, browsing and both halves of
+    the stock, out of stock; selling refused kinds, masked and out-of-range letters, cursed/damaged items (and being
+    thrown out for it), no room, the owner out of money, an unknown potion identified by the sale, stacking arrows
+    onto the store's (group re-pricing), every display branch after a sale; charisma's effect on prices; the inventory
+    keys; locked doors; stepping onto a store door through playerMove(). After each token: a state line, every store
+    whose state changed, every message and every screen line (16,686 lines).
+  28.6k lines in all, byte-for-byte on the first run. Mutation checks: a one-character baseline edit fails exactly that
+  line in both message and price sections; changing the counter-offer's `- 3` to `- 2` fails the visits trace. The
+  screen lines of a visit stop where drawCavePanel() starts (its first write is at row 2, column 0, where the store
+  never writes -- the redraw is display only), and `V0`/`V1` turn screen comparison off around the inventory keys
+  (M14 screens the port doesn't draw).
+  - tools/persistence_dump's round trip now stocks the stores before saving and dumps them after restoring (C++
+    svWrite()/loadGame() against the JSON section); its baseline changed only by the stores' lines and the RNG /
+    missiles_counter they move. GameSaveTests adds the stores round trip, the out-of-bounds store data, and restore-
+    time maintenance equal to a same-day restore plus N StoreInventory.Maintenance calls. Every older stub baseline
+    regenerates byte-identical. 76 tests pass.
+- Not covered: storeSellHaggle()'s `current_asking_price < 1` clamp (max_buy and max_gold are both at least 1 there);
+  GetItemId's "You are not carrying anything." from the sell command ("You have nothing to sell" returns first).
+- Found, not in scope -- town generation: generateCave()'s town branch (townGeneration(): dungeonPlaceTownStores() /
+  dungeonBuildStore(), which place the store buildings and door objects, lightTown() with its townsfolk, the town_seed
+  reseed, and a storeMaintenance() call) was never ported -- the POC scoped DungeonGenerator to levels >= 1 and no
+  milestone owned the town. The harness places a store door object by hand to test the entrance. Handed to M15
+  (below), where generateCave()'s level dispatch lives.
+- Defer:
+  - To M14: drawing the store screen from the ScreenWrite lines (owner, item list, prices, "- cont. -", gold, the
+    command help, the haggle prompt and "Asking/Offer : N" lines); the bell; ^R redraw.
+  - To M15: storeInitializeOwners() in startMoria() for a new game (before character creation's RNG use, as
+    game_run.cpp:43 orders it); playDungeon()'s storeMaintenance() every 1000 turns below the town; town generation
+    (see above).
 
 ### M14 — Full UI                                                                                                   
 																											  
@@ -587,6 +708,11 @@ caveGetTileSymbol() on every step (running's own glyph lookups are already exact
 																											
 - From M11: the inventory/equipment/help screens are game-state-complete (Items.InventoryCommands tracks
 game.screen's screen id and wear range); only their drawing and screen_has_changed are left.
+- From M12: the message history the save file should carry (svWrite()'s last_message_id + messages[]); the
+score screen (paging HighScores.FormatScoreLine lines, header, <ESCAPE>); splash/help/death text pagers;
+CharacterSheet.StatsAsString / StatRating are the character screen's formatters too.
+- From M13: the store screen -- StoreCommands writes every line it shows through PlayerWorld.ScreenWrite (row, column,
+text, clear-to-end-of-line), so the screen is a renderer over those lines plus the bell and ^R redraw.
 
 ### M15 — Main loop integration                                                                                     
 																											  
@@ -608,6 +734,19 @@ new monsters, and skipping the command while paralysed or resting -- before upda
 																											
 - From M11: dispatch the item commands (eat, quaff, read, use, aim, throw, inventory, inscribe); re-enter
 game.doing_inventory_command at the start of a turn; call MagicInitializeItemNames(game.magic_seed) after creation.
+- From M12: startMoria()'s restore -- hold dg.game_turn at -1 until then (the C++ initializer's value; the port's
+Dungeon defaults to 0, and LoadGame refuses to restore "while still alive"), call GameSave.LoadGame, on
+LoadOutcome.Failed print "Please try again without that save file." and exit, on Restored skip creation
+(changeCharacterName(), current_hp < 0 -> dead) and generate a level only if Generate is set; then
+MagicInitializeItemNames(game.magic_seed) as for a new game. Re-derive the screen panel after a restore (only
+max_rows/max_cols are saved). The save command ("(saved)" as the cause, then endGame()), endGame()'s save on
+death, recordNewHighScore() + the score screen, and the eof/hangup save are this milestone's glue.
+- From M13: StoreCommands.InitializeOwners(w) in startMoria() (game_run.cpp:43, before the restore/creation branch);
+StoreInventory.Maintenance(w) every 1000 turns when dg.current_level != 0 (playDungeon(), before the new-monster
+roll); and town generation, never ported -- generateCave()'s current_level == 0 branch (townGeneration():
+seedSet(town_seed), dungeonPlaceTownStores()/dungeonBuildStore() with the store door objects, fill, boundary walls,
+stairs, seedResetToOldSeed(), dungeonNewSpot(), lightTown()'s day/night lighting and townsfolk, storeMaintenance()).
+It's ~130 lines over already-ported helpers; verify it with the golden-trace harness at level 0.
 
 Out of scope for the whole roadmap: wizard.cpp (debug commands), recall.cpp (monster-memory text, could be      
 picked up opportunistically alongside M0 if desired), original binary save format.                              

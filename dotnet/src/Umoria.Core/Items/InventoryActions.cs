@@ -10,8 +10,7 @@ namespace Umoria.Core.Items;
 // helpers (playerTakeOff() and the worn-item predicates). The commands built
 // on them -- wear, take off, drop, exchange -- are InventoryCommands.
 //
-// Not ported: inventoryTakeOneItem(), whose only callers are the store's
-// buy/sell (M13).
+// M13 added inventoryTakeOneItem(), for the store's buy/sell.
 public static class InventoryActions
 {
     // src/inventory.cpp:361 inventoryItemSingleStackable() -- checks if an
@@ -19,6 +18,20 @@ public static class InventoryActions
     public static bool ItemSingleStackable(in Inventory item)
     {
         return item.SubCategoryId >= InventoryConfig.ItemSingleStackMin && item.SubCategoryId <= InventoryConfig.ItemSingleStackMax;
+    }
+
+    // src/inventory.cpp:43 inventoryTakeOneItem() -- a copy of the item, one
+    // of a single-stackable stack. (M13)
+    public static Inventory TakeOneItem(in Inventory fromItem)
+    {
+        var toItem = fromItem;
+
+        if (toItem.ItemsCount > 1 && ItemSingleStackable(toItem))
+        {
+            toItem.ItemsCount = 1;
+        }
+
+        return toItem;
     }
 
     // src/inventory.cpp:374 inventoryItemRemoveCurse()

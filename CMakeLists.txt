@@ -476,3 +476,40 @@ list(APPEND item_use_dump_source_files
 add_executable(item_use_dump ${item_use_dump_source_files})
 target_link_libraries(item_use_dump ${CURSES_LIBRARIES})
 set_target_properties(item_use_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
+# Persistence dump harness: verifies the .NET migration's M12 port (save/load
+# semantics, the scoreboard, the character sheet and storeItemValue()) against
+# the real compiled C++ game. Same build pattern as item_use_dump. See
+# tools/persistence_dump/persistence_dump.cpp.
+#
+set(persistence_dump_source_files ${source_files})
+list(REMOVE_ITEM persistence_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
+list(APPEND persistence_dump_source_files
+        tools/persistence_dump/persistence_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(persistence_dump ${persistence_dump_source_files})
+target_link_libraries(persistence_dump ${CURSES_LIBRARIES})
+set_target_properties(persistence_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+
+#
+# Store dump harness: verifies the .NET migration's M13 port (store restocking,
+# pricing, buying, selling and haggling) against the real compiled C++ game.
+# Same build pattern as item_use_dump. See tools/store_dump/store_dump.cpp.
+#
+set(store_dump_source_files ${source_files})
+list(REMOVE_ITEM store_dump_source_files ${source_dir}/main.cpp ${source_dir}/ui_io.cpp)
+list(APPEND store_dump_source_files
+        tools/store_dump/store_dump.cpp
+        tools/char_create_dump/char_create_common.cpp
+        tools/char_create_dump/ui_io_stub.cpp
+)
+
+add_executable(store_dump ${store_dump_source_files})
+target_link_libraries(store_dump ${CURSES_LIBRARIES})
+set_target_properties(store_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

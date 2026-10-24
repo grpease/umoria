@@ -35,6 +35,10 @@
     <None Include="..\ItemDescriptionTraces\**" LinkBase="ItemDescriptionTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\ItemUseTraces\**" LinkBase="ItemUseTraces" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\tools\item_use_dump\item_use_scenarios.inc" Link="ItemUseTraces\item_use_scenarios.inc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PersistenceTraces\**" LinkBase="PersistenceTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\tools\persistence_dump\score_scenarios.inc" Link="PersistenceTraces\score_scenarios.inc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\StoreTraces\**" LinkBase="StoreTraces" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\tools\store_dump\store_scenarios.inc" Link="StoreTraces\store_scenarios.inc" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

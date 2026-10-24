@@ -904,7 +904,7 @@ public class SpellCastingTraceTests
         return h;
     }
 
-    private static uint HashItem(uint h, in Inventory item)
+    internal static uint HashItem(uint h, in Inventory item)
     {
         h = Mix(h, item.Id);
         h = Mix(h, item.SpecialNameId);

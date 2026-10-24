@@ -29,7 +29,7 @@ public sealed class ObjectIdentification
     public const int ObjectIdentSize = 448;
 
     // MAX_MUSHROOMS (src/identification.h)
-    private const int MaxMushrooms = 22;
+    public const int MaxMushrooms = 22;
 
     public byte[] ObjectsIdentified { get; } = new byte[ObjectIdentSize];
 

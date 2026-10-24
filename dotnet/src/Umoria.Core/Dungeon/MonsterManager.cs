@@ -33,7 +33,7 @@ public sealed class MonsterManager
     // monster slots start at MonsterConfig.MonMinIndexId (2). See
     // src/monster.h's MON_MIN_INDEX_ID comment.
     public Monster[] Monsters { get; } = new Monster[MonsterConstants.MonTotalAllocations];
-    public int NextFreeMonsterId { get; private set; } = MonsterConfig.MonMinIndexId;
+    public int NextFreeMonsterId { get; internal set; } = MonsterConfig.MonMinIndexId;
 
     // src/monster_manager.cpp:17 monster_multiply_total -- total count of
     // in-progress creature reproductions this level (incremented by

@@ -17,6 +17,38 @@ public static class PlayerBonuses
         return py.Misc.Gender;
     }
 
+    // src/player.cpp:41 playerGetGenderLabel() (M12, the character sheet)
+    public static string GenderLabel(Player py)
+    {
+        if (IsMale(py))
+        {
+            return "Male";
+        }
+
+        return "Female";
+    }
+
+    // src/player.cpp:1652 playerRankTitle() (M12, the character sheet)
+    public static string RankTitle(Player py)
+    {
+        if (py.Misc.Level < 1)
+        {
+            return "Babe in arms";
+        }
+
+        if (py.Misc.Level <= PlayerConfig.PlayerMaxLevel)
+        {
+            return Data.Generated.DataPlayerData.ClassRankTitles[py.Misc.ClassId][py.Misc.Level - 1];
+        }
+
+        if (IsMale(py))
+        {
+            return "**KING**";
+        }
+
+        return "**QUEEN**";
+    }
+
     // src/player.cpp:37 playerSetGender()
     public static void SetGender(Player py, bool isMale)
     {

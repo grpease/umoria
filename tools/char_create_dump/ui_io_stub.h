@@ -30,3 +30,22 @@ void uiStubSetConfirmWithAbortAnswer(int answer);
 // Where printMessage() / printMessageNoCommandInterrupt() append every
 // non-null message; nullptr (the default) logs nothing. (M11)
 void uiStubSetMessageLog(std::vector<std::string> *log);
+
+// Where putStringClearToEOL() appends every line it is given, as
+// "row,col<TAB>text"; nullptr (the default) logs nothing. (M12, the score
+// screen)
+void uiStubSetScreenLog(std::vector<std::string> *log);
+
+// Also log putString() lines (as "row,col=<TAB>text"), not only
+// putStringClearToEOL() ones. Off by default. (M13, the store screen)
+void uiStubSetScreenLogPutString(bool enabled);
+
+// Scripted lines for getStringInput(), one per call, replacing the single
+// `name` of uiStubSetScript(); a line holding just ESCAPE is <ESCAPE> (the call
+// returns false and leaves the buffer alone, as the real one does when
+// nothing was typed). nullptr (the default) goes back to `name`. (M13, the
+// store's haggling prompts)
+void uiStubSetStringScript(const std::vector<std::string> *lines);
+
+// How many scripted lines getStringInput() has read so far. (M13)
+size_t uiStubStringsConsumed();

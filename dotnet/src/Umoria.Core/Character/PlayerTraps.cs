@@ -6,14 +6,15 @@ using Umoria.Core.Items;
 using Umoria.Core.Model;
 using Umoria.Core.Model.Generated;
 using Umoria.Core.Rng;
+using Umoria.Core.Stores;
 
 namespace Umoria.Core.Character;
 
 // M8: traps. playerStepsOnTrap() and the trap* effects are file-static in
 // src/player_move.cpp; disarming and chest traps are src/player_traps.cpp.
 //
-// Not ported (throws NotSupportedException, never silently skipped): the
-// town's store entrances (storeEnter(): M13).
+// The town's store entrances threw NotSupportedException until M13; they
+// now enter the store (storeEnter(), Stores.StoreCommands).
 //
 // M9: the corroding gas, fire and acid traps, deferred in M8, now run
 // through Items.InventoryDamage -- the same damage primitives monster
@@ -316,7 +317,8 @@ public static class PlayerTraps
 
             // Town level traps are special, the stores.
             case >= TrapTypes.GeneralStore and <= TrapTypes.MagicShop:
-                throw new NotSupportedException("storeEnter() is M13, not yet ported.");
+                StoreCommands.Enter(w, item.SubCategoryId - TrapTypes.GeneralStore);
+                break;
 
             default:
                 // All cases are handled, so this should never be reached!

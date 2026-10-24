@@ -2,6 +2,7 @@ using Umoria.Core.Dungeon;
 using Umoria.Core.Items;
 using Umoria.Core.Model;
 using Umoria.Core.Model.Generated;
+using Umoria.Core.Stores;
 
 namespace Umoria.Core.Character;
 
@@ -22,6 +23,9 @@ namespace Umoria.Core.Character;
 // M10 added the two remaining input hooks the casting layer reads through:
 // single keypresses (spell menus, directions, genocide's monster letter) and
 // the inventory item prompt.
+//
+// M13 added the stores (stores[] and store.cpp's haggling static) and a
+// sink for the store screen's text.
 public sealed class PlayerWorld
 {
     public PlayerWorld(
@@ -80,7 +84,9 @@ public sealed class PlayerWorld
     // menu itself (paging between pack and equipment, the '*' list,
     // inscription digits, upper-case "Try" confirmation) is UI (M14); the
     // caller sees only the chosen slot. Read it through
-    // PlayerCore.GetItemId. The default escapes. (M10)
+    // PlayerCore.GetItemId. The default escapes. (M10) A slot outside the
+    // range may be returned (the letter typed); GetItemId refuses it as the
+    // original does, printing the store's "I do not buy such items." (M13)
     public Func<string, int, int, int?> SelectItem { get; set; } = (_, _, _) => null;
 
     // src/ui_io.cpp getInputConfirmationWithAbort() -- yes (1), no (0) or
@@ -98,6 +104,19 @@ public sealed class PlayerWorld
     // drops them; the M11 item-use trace records them to check the text.
     // Fed by PlayerCore.PrintMessage. (M11)
     public Action<string>? MessageLog { get; set; }
+
+    // src/store_inventory.cpp stores[] -- the six town stores, which live
+    // across levels and in the save file. (M13)
+    public Store[] Stores { get; } = Store.CreateTable();
+
+    // src/store.cpp's file-static store_last_increment -- the haggling
+    // auto-increment a bare <RETURN> repeats. (M13)
+    public short StoreLastIncrement { get; set; }
+
+    // src/ui_io.cpp putStringClearToEOL() (clearToEol) / putString() --
+    // text the store screen writes at (row, col). Drawing it is the UI's
+    // (M14); by default this drops it, the M13 store trace records it.
+    public Action<int, int, string, bool>? ScreenWrite { get; set; }
 }
 
 // src/player_run.cpp's static running state -CJS-
