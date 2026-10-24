@@ -20,9 +20,9 @@ namespace Umoria.Core.Creatures;
 // the same slot semantics (dungeonDeleteMonsterRecord() swaps the last slot
 // in, exactly as before -- that is what hack_monptr guards).
 //
-// Display-only calls are omitted: dungeonLiteSpot() stays the
-// ScreenRendering.LiteSpot no-op, and screen_has_changed (a UI redraw hint
-// for inventoryExecuteCommand()) is not modelled. game.wizard_mode is
+// dungeonLiteSpot() redraws through ScreenRendering.LiteSpot (M14), and the
+// visibility changes set screen_has_changed (game.ScreenHasChanged, the
+// "Continuing with inventory command?" hint -- M14). game.wizard_mode is
 // always false here (wizard.cpp is out of the roadmap's scope), so
 // monsterUpdateVisibility()'s "wizard sight" branch is not ported.
 public static class MonsterAi
@@ -84,6 +84,9 @@ public static class MonsterAi
                 PlayerCore.Disturb(w, 1, 0);
                 monster.Lit = true;
                 ScreenRendering.LiteSpot(w.Dg, monster.Pos);
+
+                // notify inventoryExecuteCommand()
+                w.Game.ScreenHasChanged = true;
             }
         }
         else if (monster.Lit)
@@ -91,6 +94,9 @@ public static class MonsterAi
             // Turn it off.
             monster.Lit = false;
             ScreenRendering.LiteSpot(w.Dg, monster.Pos);
+
+            // notify inventoryExecuteCommand()
+            w.Game.ScreenHasChanged = true;
         }
     }
 

@@ -35,7 +35,7 @@ generation (initially feared otherwise).
 - [x] M11 — Items/inventory/identification
 - [x] M12 — Save/load (JSON)
 - [x] M13 — Stores/economy
-- [ ] M14 — Full UI *(partial: minimal walkable Terminal.Gui loop exists from the POC; inventory/character/store/message-log screens not started)*
+- [x] M14 — Full UI *(core UI layer ported + screen-traced byte-for-byte via tools/ui_screen_dump (fake curses); Terminal.Gui frontend + temporary UI bench; bolt/throw animations deferred; manual terminal check pending)*
 - [ ] M15 — Main loop integration
 
 ## How each milestone gets verified                                                                                
@@ -714,6 +714,25 @@ CharacterSheet.StatsAsString / StatRating are the character screen's formatters 
 - From M13: the store screen -- StoreCommands writes every line it shows through PlayerWorld.ScreenWrite (row, column,
 text, clear-to-end-of-line), so the screen is a renderer over those lines plus the bell and ^R redraw.
 
+- Done (M14): Umoria.Core/Ui -- Terminal (a virtual 80x24 curses: ui_io.cpp is the only file of the original that
+calls curses, so everything above it is ported code) and GameUi (ui_io.cpp, ui.cpp, ui_inventory.cpp's display half
+and inventoryGetInputForItemId(), the ^P/M/L screens, the score table and text pagers). PlayerWorld.Ui is null
+headless; display call sites call `w.Ui?.X()`, and dungeon-level code (lighting, panel) draws through
+ScreenRendering, keyed by Dungeon. Every printCharacter*() site in ported code (~63) and every map redraw site
+(LiteSpot, light/room/panel redraws, detection sprites, running) is wired. Umoria.Console is a Terminal.Gui view
+over the Terminal with the game on its own thread, plus a temporary bench (Bench/UiBench.cs) until M15.
+- Decided: hallucination glyphs on screen use a cosmetic RNG (TileSymbol.Get(w, coord, rng)); running's glyph
+lookups keep the game RNG, so the game's random stream never depends on rendering.
+- Verified: tools/ui_screen_dump keeps the REAL ui_io.cpp and swaps curses for a headless shim
+(tools/ui_screen_dump/shim/curses.h, same semantics as Ui.Terminal), #including game_run.cpp for its static
+screens; zero src/ changes. 42 scenarios (ui_screen_scenarios.inc, shared with UiScreenTraceTests), every screen at
+every key read, ~13.4k lines byte-for-byte; mutate-and-restore done. Hallucinating screens are excluded by design.
+- Findings: monster.cpp sets screen_has_changed on visibility changes (ported into MonsterAi); resetDungeonFlags()
+is what marks the player's tile; a message left waiting makes the next clearScreen() read a -more- key.
+- Deferred: the bolt/ball/breath and throw animations (panelPutTile('*') + putQIO() per square with no delay, only
+visible on a slow terminal); roguelike key translation; the character creation screens (character.cpp's prompts --
+CharacterCreation still takes a CharacterChoices record). Manual check in a real terminal still pending.
+
 ### M15 — Main loop integration                                                                                     
 																											  
 - Scope: game_run.cpp's playDungeon/startMoria (the actual per-turn loop and command dispatch, once M7's        
@@ -747,6 +766,14 @@ roll); and town generation, never ported -- generateCave()'s current_level == 0 
 seedSet(town_seed), dungeonPlaceTownStores()/dungeonBuildStore() with the store door objects, fill, boundary walls,
 stairs, seedResetToOldSeed(), dungeonNewSpot(), lightTown()'s day/night lighting and townsfolk, storeMaintenance()).
 It's ~130 lines over already-ported helpers; verify it with the golden-trace harness at level 0.
+
+- From M14: replace Umoria.Console's Bench/UiBench.cs with playDungeon(); dispatch the M14 screens
+(GameUi.CommandPreviousMessage/DungeonDisplayMap/CommandLocateOnMap/ChangeCharacterName/ShowScoresScreen/
+DisplayTextHelpFile/DisplaySplashScreen/DisplayDeathFile) and set game.LastCommand for ^P; executeInputCommands()'s
+panelMoveCursor(py.pos) + message_ready_to_print = false (GameUi.ClearMessageReady) before each key; the
+printCharacter*() calls in the loop itself; GameUi.EndOfInput for the EOF save; the character creation screens;
+carry PlayerWorld.MessageHistory in the save file (svWrite()'s last_message_id + messages[]); a non-blocking read on
+IKeySource for checkForNonBlockingKeyPress() (interrupting rest/run).
 
 Out of scope for the whole roadmap: wizard.cpp (debug commands), recall.cpp (monster-memory text, could be      
 picked up opportunistically alongside M0 if desired), original binary save format.                              

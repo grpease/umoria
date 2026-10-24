@@ -23,9 +23,9 @@ namespace Umoria.Core.Character;
 // and movement, the keypress interrupt, random teleport, command input) is
 // M16's job; see migration-plan.md's M7 section.
 //
-// Display calls (printCharacter*(), drawDungeonPanel()) are omitted;
-// messages go through PlayerCore.PrintMessage (game-state half of
-// printMessage(); the display half is a no-op until M14).
+// Display calls (printCharacter*(), drawDungeonPanel()) go through w.Ui /
+// ScreenRendering at the original's call sites (M14); messages go through
+// PlayerCore.PrintMessage.
 public static class PlayerStatusEffects
 {
     // ---- playDungeon() level-entry preamble -----------------------------
@@ -93,7 +93,7 @@ public static class PlayerStatusEffects
         UpdateHeroStatus(w);
 
         var regenAmount = FoodConsumption(w);
-        UpdateRegeneration(w.Py, regenAmount);
+        UpdateRegeneration(w, regenAmount);
 
         UpdateBlindness(w);
         UpdateConfusion(w);
@@ -130,10 +130,17 @@ public static class PlayerStatusEffects
         }
 
         // src/ui.cpp:381 printCharacterStudyInstruction() -- clears
-        // PY_STUDY, then (display only) shows/blanks "Study".
+        // PY_STUDY, then shows/blanks "Study".
         if ((py.Flags.Status & PlayerConfig.Status.PyStudy) != 0)
         {
-            py.Flags.Status &= ~PlayerConfig.Status.PyStudy;
+            if (w.Ui is { } ui)
+            {
+                ui.PrintCharacterStudyInstruction();
+            }
+            else
+            {
+                py.Flags.Status &= ~PlayerConfig.Status.PyStudy;
+            }
         }
 
         UpdateStatusFlags(w);
@@ -209,6 +216,8 @@ public static class PlayerStatusEffects
         m.BthWithBows += 12;
 
         PlayerCore.PrintMessage(w, "You feel like a HERO!");
+        w.Ui?.PrintCharacterMaxHitPoints();
+        w.Ui?.PrintCharacterCurrentHitPoints();
     }
 
     // src/game_run.cpp:329 playerDisableHeroism()
@@ -224,11 +233,13 @@ public static class PlayerStatusEffects
         {
             m.CurrentHp = m.MaxHp;
             m.CurrentHpFraction = 0;
+            w.Ui?.PrintCharacterCurrentHitPoints();
         }
         m.Bth -= 12;
         m.BthWithBows -= 12;
 
         PlayerCore.PrintMessage(w, "The heroism wears off.");
+        w.Ui?.PrintCharacterMaxHitPoints();
     }
 
     // src/game_run.cpp:346 playerActivateSuperHeroism()
@@ -245,6 +256,8 @@ public static class PlayerStatusEffects
         m.BthWithBows += 24;
 
         PlayerCore.PrintMessage(w, "You feel like a SUPER HERO!");
+        w.Ui?.PrintCharacterMaxHitPoints();
+        w.Ui?.PrintCharacterCurrentHitPoints();
     }
 
     // src/game_run.cpp:360 playerDisableSuperHeroism()
@@ -260,11 +273,13 @@ public static class PlayerStatusEffects
         {
             m.CurrentHp = m.MaxHp;
             m.CurrentHpFraction = 0;
+            w.Ui?.PrintCharacterCurrentHitPoints();
         }
         m.Bth -= 24;
         m.BthWithBows -= 24;
 
         PlayerCore.PrintMessage(w, "The super heroism wears off.");
+        w.Ui?.PrintCharacterMaxHitPoints();
     }
 
     // src/game_run.cpp:377 playerUpdateHeroStatus()
@@ -336,6 +351,7 @@ public static class PlayerStatusEffects
                     f.Status |= PlayerConfig.Status.PyWeak;
                     PlayerCore.PrintMessage(w, "You are getting weak from hunger.");
                     PlayerCore.Disturb(w, 0, 0);
+                    w.Ui?.PrintCharacterHungerStatus();
                 }
 
                 if (f.Food < PlayerConfig.PlayerFoodFaint && RandomNumber.Next(8) == 1)
@@ -350,6 +366,7 @@ public static class PlayerStatusEffects
                 f.Status |= PlayerConfig.Status.PyHungry;
                 PlayerCore.PrintMessage(w, "You are getting hungry.");
                 PlayerCore.Disturb(w, 0, 0);
+                w.Ui?.PrintCharacterHungerStatus();
             }
         }
 
@@ -372,8 +389,10 @@ public static class PlayerStatusEffects
     }
 
     // src/game_run.cpp:455 playerUpdateRegeneration()
-    private static void UpdateRegeneration(Player py, int amount)
+    private static void UpdateRegeneration(PlayerWorld w, int amount)
     {
+        var py = w.Py;
+
         if (py.Flags.RegenerateHp)
         {
             amount = amount * 3 / 2;
@@ -386,19 +405,19 @@ public static class PlayerStatusEffects
 
         if (py.Flags.Poisoned < 1 && py.Misc.CurrentHp < py.Misc.MaxHp)
         {
-            RegenerateHitPoints(py, amount);
+            RegenerateHitPoints(w, amount);
         }
 
         if (py.Misc.CurrentMana < py.Misc.Mana)
         {
-            RegenerateMana(py, amount);
+            RegenerateMana(w, amount);
         }
     }
 
     // src/game_run.cpp:1995 playerRegenerateHitPoints() -RAK-
-    private static void RegenerateHitPoints(Player py, int percent)
+    private static void RegenerateHitPoints(PlayerWorld w, int percent)
     {
-        var m = py.Misc;
+        var m = w.Py.Misc;
 
         int oldChp = m.CurrentHp;
         var newChp = m.MaxHp * percent + PlayerConfig.PlayerRegenHpBase;
@@ -431,12 +450,17 @@ public static class PlayerStatusEffects
             m.CurrentHp = m.MaxHp;
             m.CurrentHpFraction = 0;
         }
+
+        if (oldChp != m.CurrentHp)
+        {
+            w.Ui?.PrintCharacterCurrentHitPoints();
+        }
     }
 
     // src/game_run.cpp:2029 playerRegenerateMana() -RAK-
-    private static void RegenerateMana(Player py, int percent)
+    private static void RegenerateMana(PlayerWorld w, int percent)
     {
-        var m = py.Misc;
+        var m = w.Py.Misc;
 
         int oldCmana = m.CurrentMana;
         var newMana = m.Mana * percent + PlayerConfig.PlayerRegenMnBase;
@@ -469,6 +493,11 @@ public static class PlayerStatusEffects
             m.CurrentMana = m.Mana;
             m.CurrentManaFraction = 0;
         }
+
+        if (oldCmana != m.CurrentMana)
+        {
+            w.Ui?.PrintCharacterCurrentMana();
+        }
     }
 
     // src/game_run.cpp:473 playerUpdateBlindness()
@@ -485,6 +514,8 @@ public static class PlayerStatusEffects
         {
             f.Status |= PlayerConfig.Status.PyBlind;
 
+            ScreenRendering.DrawDungeonPanel(w.Dg);
+            w.Ui?.PrintCharacterBlindStatus();
             PlayerCore.Disturb(w, 0, 1);
 
             // unlight creatures
@@ -497,6 +528,8 @@ public static class PlayerStatusEffects
         {
             f.Status &= ~PlayerConfig.Status.PyBlind;
 
+            w.Ui?.PrintCharacterBlindStatus();
+            ScreenRendering.DrawDungeonPanel(w.Dg);
             PlayerCore.Disturb(w, 0, 1);
 
             // light creatures
@@ -520,6 +553,7 @@ public static class PlayerStatusEffects
         if ((f.Status & PlayerConfig.Status.PyConfused) == 0)
         {
             f.Status |= PlayerConfig.Status.PyConfused;
+            w.Ui?.PrintCharacterConfusedState();
         }
 
         f.Confused--;
@@ -527,6 +561,8 @@ public static class PlayerStatusEffects
         if (f.Confused == 0)
         {
             f.Status &= ~PlayerConfig.Status.PyConfused;
+
+            w.Ui?.PrintCharacterConfusedState();
 
             PlayerCore.PrintMessage(w, "You feel less confused now.");
 
@@ -556,6 +592,7 @@ public static class PlayerStatusEffects
             else
             {
                 f.Status |= PlayerConfig.Status.PyFear;
+                w.Ui?.PrintCharacterFearState();
             }
         }
         else if (f.SuperHeroism + f.Heroism > 0)
@@ -569,6 +606,7 @@ public static class PlayerStatusEffects
         {
             f.Status &= ~PlayerConfig.Status.PyFear;
 
+            w.Ui?.PrintCharacterFearState();
             PlayerCore.PrintMessage(w, "You feel bolder now.");
             PlayerCore.Disturb(w, 0, 0);
         }
@@ -587,6 +625,7 @@ public static class PlayerStatusEffects
         if ((f.Status & PlayerConfig.Status.PyPoisoned) == 0)
         {
             f.Status |= PlayerConfig.Status.PyPoisoned;
+            w.Ui?.PrintCharacterPoisonedState();
         }
 
         f.Poisoned--;
@@ -595,6 +634,7 @@ public static class PlayerStatusEffects
         {
             f.Status &= ~PlayerConfig.Status.PyPoisoned;
 
+            w.Ui?.PrintCharacterPoisonedState();
             PlayerCore.PrintMessage(w, "You feel better.");
             PlayerCore.Disturb(w, 0, 0);
 
@@ -730,7 +770,11 @@ public static class PlayerStatusEffects
 
         f.Image--;
 
-        // (on reaching 0 the original redraws the whole panel -- display)
+        if (f.Image == 0)
+        {
+            // Used to draw entire screen! -CJS-
+            ScreenRendering.DrawDungeonPanel(w.Dg);
+        }
     }
 
     // src/game_run.cpp:703 playerUpdateParalysis()
@@ -788,6 +832,7 @@ public static class PlayerStatusEffects
             m.Ac += 100;
             m.DisplayAc += 100;
 
+            w.Ui?.PrintCharacterCurrentArmorClass();
             PlayerCore.PrintMessage(w, "Your skin turns into steel!");
         }
 
@@ -801,6 +846,7 @@ public static class PlayerStatusEffects
             m.Ac -= 100;
             m.DisplayAc -= 100;
 
+            w.Ui?.PrintCharacterCurrentArmorClass();
             PlayerCore.PrintMessage(w, "Your skin returns to normal.");
         }
     }
@@ -827,6 +873,7 @@ public static class PlayerStatusEffects
             m.DisplayAc += 2;
 
             PlayerCore.PrintMessage(w, "You feel righteous!");
+            w.Ui?.PrintCharacterCurrentArmorClass();
         }
 
         f.Blessed--;
@@ -842,6 +889,7 @@ public static class PlayerStatusEffects
             m.DisplayAc -= 2;
 
             PlayerCore.PrintMessage(w, "The prayer has expired.");
+            w.Ui?.PrintCharacterCurrentArmorClass();
         }
     }
 
@@ -995,6 +1043,7 @@ public static class PlayerStatusEffects
         if ((f.Status & PlayerConfig.Status.PySpeed) != 0)
         {
             f.Status &= ~PlayerConfig.Status.PySpeed;
+            w.Ui?.PrintCharacterSpeed();
         }
 
         if ((f.Status & PlayerConfig.Status.PyParalysed) != 0 && f.Paralysis < 1)
@@ -1014,21 +1063,33 @@ public static class PlayerStatusEffects
 
         if ((f.Status & PlayerConfig.Status.PyArmor) != 0)
         {
+            w.Ui?.PrintCharacterCurrentArmorClass();
             f.Status &= ~PlayerConfig.Status.PyArmor;
         }
 
         if ((f.Status & PlayerConfig.Status.PyStats) != 0)
         {
+            for (var n = 0; n < 6; n++)
+            {
+                if (((PlayerConfig.Status.PyStr << n) & f.Status) != 0)
+                {
+                    w.Ui?.DisplayCharacterStats(n);
+                }
+            }
+
             f.Status &= ~PlayerConfig.Status.PyStats;
         }
 
         if ((f.Status & PlayerConfig.Status.PyHp) != 0)
         {
+            w.Ui?.PrintCharacterMaxHitPoints();
+            w.Ui?.PrintCharacterCurrentHitPoints();
             f.Status &= ~PlayerConfig.Status.PyHp;
         }
 
         if ((f.Status & PlayerConfig.Status.PyMana) != 0)
         {
+            w.Ui?.PrintCharacterCurrentMana();
             f.Status &= ~PlayerConfig.Status.PyMana;
         }
     }

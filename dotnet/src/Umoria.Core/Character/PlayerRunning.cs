@@ -141,12 +141,12 @@ public static class PlayerRunning
 
         // We must erase the player symbol '@' here, because sub3_move_light()
         // does not erase the previous location of the player when in find mode
-        // and when `run_print_self` is false. -- The panelPutTile() itself is
-        // rendering, but the glyph lookup draws RNG while hallucinating, so
-        // it is kept.
+        // and when `run_print_self` is false. -- The glyph lookup draws game
+        // RNG while hallucinating, so it is the original's (not the screen's
+        // cosmetic one).
         if (!py.TemporaryLightOnly && !w.Game.Options.RunPrintSelf)
         {
-            _ = TileSymbol.Get(w, py.Pos);
+            ScreenRendering.PutTile(w.Dg, TileSymbol.Get(w, py.Pos), py.Pos);
         }
 
         PlayerMovement.Move(w, direction, true);

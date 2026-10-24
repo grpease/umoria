@@ -26,6 +26,9 @@ namespace Umoria.Core.Character;
 //
 // M13 added the stores (stores[] and store.cpp's haggling static) and a
 // sink for the store screen's text.
+//
+// M14 added the terminal UI (Ui, null when headless) and the message
+// history printMessage() keeps.
 public sealed class PlayerWorld
 {
     public PlayerWorld(
@@ -117,6 +120,15 @@ public sealed class PlayerWorld
     // text the store screen writes at (row, col). Drawing it is the UI's
     // (M14); by default this drops it, the M13 store trace records it.
     public Action<int, int, string, bool>? ScreenWrite { get; set; }
+
+    // The terminal UI, when there is one (Ui.GameUi.Attach() sets it). Game
+    // logic calls its display routines through `w.Ui?.` at the original's
+    // display call sites; headless runs leave it null. (M14)
+    public Ui.GameUi? Ui { get; set; }
+
+    // src/ui.cpp messages[] / last_message_id -- saved message history
+    // -CJS- (M14)
+    public Ui.MessageHistory MessageHistory { get; } = new();
 }
 
 // src/player_run.cpp's static running state -CJS-

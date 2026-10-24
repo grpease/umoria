@@ -12,8 +12,8 @@ namespace Umoria.Core.Character;
 // playerRestOff(), playerChangeSpeed(), playerTakesHit(),
 // playerCarryingLoadLimit(), playerStrength().
 //
-// Display calls (printCharacter*()) are omitted, except for the two
-// "display" routines that also change game state: printMessage() (zeroes
+// Display calls (printCharacter*()) go through w.Ui (M14); two of those
+// "display" routines also change game state: printMessage() (zeroes
 // game.command_count -- see PrintMessage below) and
 // printCharacterMovementState() (maintains PY_REPEAT -- see
 // UpdateMovementStateFlags). flushInputBuffer() is UI-only.
@@ -62,6 +62,7 @@ public static class PlayerCore
         f.Status |= PlayerConfig.Status.PySearch;
 
         UpdateMovementStateFlags(w);
+        w.Ui?.PrintCharacterSpeed();
 
         f.FoodDigested++;
     }
@@ -77,6 +78,7 @@ public static class PlayerCore
         f.Status &= ~PlayerConfig.Status.PySearch;
 
         UpdateMovementStateFlags(w);
+        w.Ui?.PrintCharacterSpeed();
 
         f.FoodDigested--;
     }
@@ -91,8 +93,9 @@ public static class PlayerCore
 
         UpdateMovementStateFlags(w);
 
-        // (printMessage(CNIL) -- flushes the "press any key" message line;
-        // a null message leaves game.command_count alone)
+        // flushes the "press any key" message line (a null message leaves
+        // game.command_count alone)
+        FlushMessage(w);
 
         f.FoodDigested++;
     }
@@ -100,12 +103,20 @@ public static class PlayerCore
     // src/ui_io.cpp:245 printMessage() -- the game-state half: every
     // non-null message zeroes game.command_count (cancelling a repeated
     // command). The display half (message line, -more- prompt, history)
-    // is ScreenRendering.PrintMessage's.
+    // is the UI's (M14: GameUi.PrintMessage, which zeroes it too).
     public static void PrintMessage(PlayerWorld w, string message)
     {
         w.Game.CommandCount = 0;
         w.MessageLog?.Invoke(message);
-        ScreenRendering.PrintMessage(message);
+        w.Ui?.PrintMessage(message);
+    }
+
+    // printMessage(CNIL) -- flushes the message line (the -more- prompt if a
+    // message is waiting); a null message leaves game.command_count alone,
+    // so this is display only. (M14)
+    public static void FlushMessage(PlayerWorld w)
+    {
+        w.Ui?.PrintMessage(null);
     }
 
     // src/ui_io.cpp:316 printMessageNoCommandInterrupt() -- saves and
@@ -180,6 +191,13 @@ public static class PlayerCore
     // without one) and another choice read. (M13)
     public static bool GetItemId(PlayerWorld w, string prompt, int itemIdStart, int itemIdEnd, bool[]? mask, string? message, out int itemId)
     {
+        // With a terminal, the real menu (M14) -- the same function whole,
+        // its game-state half included.
+        if (w.Ui is { } ui)
+        {
+            return ui.InventoryGetInputForItemId(out itemId, prompt, itemIdStart, itemIdEnd, mask, message);
+        }
+
         var py = w.Py;
         itemId = 0;
 
@@ -236,7 +254,7 @@ public static class PlayerCore
             {
                 PrintMessage(w, message);
             }
-            // (else terminalBellSound())
+            // (else terminalBellSound() -- only reached headless)
         }
     }
 
@@ -277,7 +295,7 @@ public static class PlayerCore
                 return true;
             }
 
-            // (terminalBellSound() -- display)
+            w.Ui?.TerminalBellSound();
         }
     }
 
@@ -302,7 +320,8 @@ public static class PlayerCore
             py.Misc.Exp = newExp + (difExp / 2);
         }
 
-        // (printCharacterLevel(), printCharacterTitle() -- display)
+        w.Ui?.PrintCharacterLevel();
+        w.Ui?.PrintCharacterTitle();
 
         // (PlayerSpells' messages are display-only, but the "Welcome" message
         // above has already zeroed game.command_count, so that's exact.)
@@ -342,13 +361,22 @@ public static class PlayerCore
         {
             m.MaxExp = m.Exp;
         }
+
+        w.Ui?.PrintCharacterExperience();
     }
 
     // src/ui.cpp:306 printCharacterMovementState() -- the game-state half:
     // PY_REPEAT is cleared, then set again only when the status line would
     // show "Repeat" (not paralysed, not resting, a command count pending).
+    // With a terminal it is the whole routine (GameUi, the same upkeep).
     public static void UpdateMovementStateFlags(PlayerWorld w)
     {
+        if (w.Ui is { } ui)
+        {
+            ui.PrintCharacterMovementState();
+            return;
+        }
+
         var f = w.Py.Flags;
 
         f.Status &= ~PlayerConfig.Status.PyRepeat;
@@ -391,8 +419,18 @@ public static class PlayerCore
     // display -- except that drawDungeonPanel() resolves every glyph through
     // caveGetTileSymbol(), which draws RNG while hallucinating: still the
     // open M14 decision. (M11)
+    //
+    // With a terminal it is the whole drawCavePanel() (M14: GameUi, which
+    // does the same state upkeep), with hallucination glyphs drawn from the
+    // cosmetic RNG.
     public static void DrawCavePanel(PlayerWorld w)
     {
+        if (w.Ui is { } ui)
+        {
+            ui.DrawCavePanel();
+            return;
+        }
+
         var f = w.Py.Flags;
 
         if ((f.Status & (PlayerConfig.Status.PySearch | PlayerConfig.Status.PyRest)) != 0)
@@ -442,6 +480,7 @@ public static class PlayerCore
 
         if (py.Misc.CurrentHp >= 0)
         {
+            w.Ui?.PrintCharacterCurrentHitPoints();
             return;
         }
 

@@ -263,7 +263,7 @@ public static class PlayerMovement
 
             var msg = Helpers.Truncate($"You have found {item.Cost} gold pieces worth of {ItemDescription.Describe(w.Identification, item, true)}", Helpers.MoriaObjDescSize);
 
-            // (printCharacterGoldValue() -- display)
+            w.Ui?.PrintCharacterGoldValue();
             w.Objects.DeleteObject(coord);
 
             PlayerCore.PrintMessage(w, msg);
@@ -351,7 +351,7 @@ public static class PlayerMovement
                 // Check for new panel
                 if (ScreenPanel.CoordOutsidePanel(py, dg, w.Treasure, w.Game.Options, py.Pos, false))
                 {
-                    // (drawDungeonPanel() -- rendering)
+                    ScreenRendering.DrawDungeonPanel(dg);
                 }
 
                 // Check to see if they should stop

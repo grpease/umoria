@@ -14,9 +14,9 @@ namespace Umoria.Core.Items;
 // unequipping, curse checks, the free-turn rule, the ring-hand prompt, and
 // the screen state the command loop branches on (game.screen's current
 // screen and wear range, game.doing_inventory_command). All of that is
-// ported; what isn't is the drawing: the item lists, help screen and header
-// lines (displayInventoryItems() etc.), and the screen's left/bottom
-// positions, which only place them. Keys come through PlayerCore.GetCommand
+// ported; the drawing (the item lists, help screen and header lines, and the
+// screen's left/bottom positions, which only place them) is the UI's, called
+// through w.Ui at the original's call sites (M14). Keys come through PlayerCore.GetCommand
 // (getCommand()/getKeyInput()), yes/no through GetInputConfirmation, the
 // drop-all prompt through PlayerWorld.ConfirmWithAbort.
 public static class InventoryCommands
@@ -31,7 +31,7 @@ public static class InventoryCommands
     }
 
     // src/ui_inventory.cpp:281 uiCommandSwitchScreen() -- the screen-id
-    // half; the redraw is display
+    // half; the redraw is the UI's
     private static void SwitchScreen(PlayerWorld w, Screen nextScreen)
     {
         if (nextScreen == w.Game.Screen.CurrentScreenId)
@@ -39,6 +39,8 @@ public static class InventoryCommands
             return;
         }
         w.Game.Screen.CurrentScreenId = nextScreen;
+
+        w.Ui?.DrawInventoryScreen(nextScreen);
     }
 
     // src/ui_inventory.cpp:326 verifyAction() -- used to verify if this
@@ -60,6 +62,7 @@ public static class InventoryCommands
 
         if (game.DoingInventoryCommand == 0)
         {
+            w.Ui?.ResetInventoryScreenPositions();
             // this forces exit of inventoryExecuteCommand() if selecting is not set true
             game.Screen.CurrentScreenId = Screen.Blank;
             return;
@@ -77,9 +80,13 @@ public static class InventoryCommands
                 game.DoingInventoryCommand = (char)0;
                 return;
             }
+            w.Ui?.ResetInventoryScreenPositions();
         }
 
-        // (a forced redraw of the current screen -- display)
+        // a forced redraw of the current screen
+        var currentScreen = game.Screen.CurrentScreenId;
+        game.Screen.CurrentScreenId = Screen.Wrong;
+        SwitchScreen(w, currentScreen);
     }
 
     // src/ui_inventory.cpp:366 uiCommandInventoryTakeOffItem()
@@ -203,6 +210,11 @@ public static class InventoryCommands
         (py.Inventory[PlayerConfig.Equipment.Auxiliary], py.Inventory[PlayerConfig.Equipment.Wield]) =
             (py.Inventory[PlayerConfig.Equipment.Wield], py.Inventory[PlayerConfig.Equipment.Auxiliary]);
 
+        if (w.Ui is { } ui && w.Game.Screen.CurrentScreenId == Screen.Equipment)
+        {
+            w.Game.Screen.ScreenLeftPos = ui.DisplayEquipment(w.Game.Options.ShowInventoryWeights, w.Game.Screen.ScreenLeftPos);
+        }
+
         PlayerCombat.AdjustBonusesForItem(w, py.Inventory[PlayerConfig.Equipment.Auxiliary], -1); // Subtract bonuses
         PlayerCombat.AdjustBonusesForItem(w, py.Inventory[PlayerConfig.Equipment.Wield], 1); // Add bonuses
 
@@ -307,7 +319,10 @@ public static class InventoryCommands
                     hand = PlayerConfig.Equipment.Right;
                 }
 
-                // (else: terminalBellSound())
+                else
+                {
+                    w.Ui?.TerminalBellSound();
+                }
 
                 if (hand != 0 && !VerifyAction(w, "Replace", hand))
                 {
@@ -727,7 +742,7 @@ public static class InventoryCommands
             var itemId = ItemMatchingInscription(py, which, command, fromLine, toLine);
             if (itemId < fromLine || itemId > toLine)
             {
-                // (terminalBellSound())
+                w.Ui?.TerminalBellSound();
                 continue;
             }
 
@@ -804,7 +819,7 @@ public static class InventoryCommands
 
         game.PlayerFreeTurn = true;
 
-        // (terminalSaveScreen() -- display)
+        w.Ui?.TerminalSaveScreen();
 
         RequestAndShowInventoryScreen(w, command == ' ');
 
@@ -845,7 +860,7 @@ public static class InventoryCommands
                     break;
                 default:
                     // Nonsense command
-                    // (terminalBellSound())
+                    w.Ui?.TerminalBellSound();
                     break;
             }
 
@@ -868,8 +883,8 @@ public static class InventoryCommands
                 // Otherwise, set a dummy command to recover screen.
                 game.DoingInventoryCommand = selecting ? command : ' ';
 
-                // (printMessage(CNIL) flushes the last message -- display;
-                // a null message leaves command_count alone)
+                // flush last message before clearing screen_has_changed and exiting
+                PlayerCore.FlushMessage(w);
 
                 // This lets us know if the world changes
                 game.ScreenHasChanged = false;
@@ -878,13 +893,16 @@ public static class InventoryCommands
             }
             else
             {
-                // (inventoryDisplayAppropriateHeader() and the command
-                // line -- display)
-                command = GetKeyInput(w);
+                // the header and the command line (getKeyInput() zeroes
+                // game.command_count either way)
+                command = w.Ui is { } ui ? ui.InventoryCommandPrompt() : GetKeyInput(w);
             }
         } while (command != Escape);
 
-        // (terminalRestoreScreen() -- display)
+        if (game.Screen.CurrentScreenId != Screen.Blank)
+        {
+            w.Ui?.TerminalRestoreScreen();
+        }
 
         PlayerBonuses.RecalculateBonuses(w.Py);
     }
@@ -919,6 +937,9 @@ public static class InventoryCommands
         {
             msgLen = 12;
         }
+
+        // (the text is read right after the prompt, as in the original)
+        w.ScreenWrite?.Invoke(0, 0, inscription, true);
 
         // (getStringInput() reads through getKeyInput(), which zeroes
         // game.command_count)

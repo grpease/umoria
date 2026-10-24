@@ -14,15 +14,18 @@ namespace Umoria.Core.Dungeon;
 // where to go by looking at the glyph the player would see, so it is game
 // logic there.
 //
-// It also draws game RNG while the player hallucinates. Every caller in this
-// port so far is that running logic, where the original draws exactly the
-// same numbers. The rendering callers (drawDungeonPanel(), panelPutTile() in
-// the light code) are still omitted, and they draw RNG too during
-// hallucination -- the open M14 decision in migration-plan.md (M7's Defer
-// list).
+// It also draws game RNG while the player hallucinates. The running logic
+// calls Get(w, coord), drawing exactly the numbers the original does. The
+// screen (M14, Ui.GameUi) passes its own cosmetic RNG instead, so redrawing
+// never changes the game's random number stream -- the M7 open decision,
+// settled in M14 as a deliberate departure: in the original every redraw
+// while hallucinating also draws from the game RNG.
 public static class TileSymbol
 {
-    public static char Get(PlayerWorld w, Coord coord)
+    public static char Get(PlayerWorld w, Coord coord) => Get(w, coord, RandomNumber.Next);
+
+    // `randomNumber(n)` returns 1..n, like randomNumber().
+    public static char Get(PlayerWorld w, Coord coord, Func<int, int> randomNumber)
     {
         var py = w.Py;
         var tile = w.Dg.Floor[coord.Y, coord.X];
@@ -37,9 +40,9 @@ public static class TileSymbol
             return ' ';
         }
 
-        if (py.Flags.Image > 0 && RandomNumber.Next(12) == 1)
+        if (py.Flags.Image > 0 && randomNumber(12) == 1)
         {
-            return (char)(byte)(RandomNumber.Next(95) + 31);
+            return (char)(byte)(randomNumber(95) + 31);
         }
 
         if (tile.CreatureId > 1 && w.Monsters.Monsters[tile.CreatureId].Lit)

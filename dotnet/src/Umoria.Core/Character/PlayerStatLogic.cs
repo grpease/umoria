@@ -258,7 +258,7 @@ public static class PlayerStatLogic
 
     // src/player_stats.cpp:283 playerStatRandomIncrease() -- increases a
     // stat by one randomized level -RAK-
-    public static bool StatRandomIncrease(Player py, int stat, Action<string>? printMessage = null)
+    public static bool StatRandomIncrease(Player py, int stat, Action<string>? printMessage = null, Ui.GameUi? ui = null)
     {
         int newStat = py.Stats.Current[stat];
 
@@ -287,14 +287,14 @@ public static class PlayerStatLogic
         }
 
         SetAndUseStat(py, stat, printMessage);
-        // (displayCharacterStats() -- display)
+        ui?.DisplayCharacterStats(stat);
 
         return true;
     }
 
     // src/player_stats.cpp:312 playerStatRandomDecrease() -- decreases a
     // stat by one randomized level -RAK-
-    public static bool StatRandomDecrease(Player py, int stat, Action<string>? printMessage = null)
+    public static bool StatRandomDecrease(Player py, int stat, Action<string>? printMessage = null, Ui.GameUi? ui = null)
     {
         int newStat = py.Stats.Current[stat];
 
@@ -321,14 +321,14 @@ public static class PlayerStatLogic
         py.Stats.Current[stat] = (byte)newStat;
 
         SetAndUseStat(py, stat, printMessage);
-        // (displayCharacterStats() -- display)
+        ui?.DisplayCharacterStats(stat);
 
         return true;
     }
 
     // src/player_stats.cpp:339 playerStatRestore() -- restore a stat.
     // Return true only if this actually makes a difference.
-    public static bool StatRestore(Player py, int stat, Action<string>? printMessage = null)
+    public static bool StatRestore(Player py, int stat, Action<string>? printMessage = null, Ui.GameUi? ui = null)
     {
         var newStat = py.Stats.Max[stat] - py.Stats.Current[stat];
 
@@ -340,7 +340,7 @@ public static class PlayerStatLogic
         py.Stats.Current[stat] = (byte)(py.Stats.Current[stat] + newStat);
 
         SetAndUseStat(py, stat, printMessage);
-        // (displayCharacterStats() -- display)
+        ui?.DisplayCharacterStats(stat);
 
         return true;
     }

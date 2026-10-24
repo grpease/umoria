@@ -53,11 +53,15 @@ public static class CharacterSheet
 
         using (var writer = new StreamWriter(file, new UTF8Encoding(false)))
         {
-            // ("Writing character sheet..." is display.)
+            // (writeCharacterSheetToFile()'s first lines)
+            w.Ui?.PutStringClearToEol("Writing character sheet...", 0, 0);
+            w.Ui?.PutQio();
+
             writer.Write(Write(w));
         }
 
-        // ("Completed." is display.)
+        w.Ui?.PutStringClearToEol("Completed.", 0, 0);
+
         return true;
     }
 

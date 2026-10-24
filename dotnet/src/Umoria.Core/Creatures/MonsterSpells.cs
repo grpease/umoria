@@ -196,7 +196,7 @@ public static class MonsterSpells
                     {
                         py.Misc.CurrentMana = (short)(py.Misc.CurrentMana - num);
                     }
-                    // (printCharacterCurrentMana() -- display)
+                    w.Ui?.PrintCharacterCurrentMana();
                     monster.Hp = (short)(monster.Hp + 6 * num);
                 }
                 break;

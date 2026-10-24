@@ -173,7 +173,7 @@ public static class PlayerEat
 
         f.Status &= ~(PlayerConfig.Status.PyWeak | PlayerConfig.Status.PyHungry);
 
-        // (printCharacterHungerStatus() -- display only)
+        w.Ui?.PrintCharacterHungerStatus();
 
         ItemDescription.TypeRemainingCountDescription(w, itemId);
         InventoryDamage.DestroyItem(py, itemId);
@@ -184,7 +184,7 @@ public static class PlayerEat
     // never false -- hence `|=` at the call sites.)
     private static bool Restore(PlayerWorld w, int stat, string message)
     {
-        if (!PlayerStatLogic.StatRestore(w.Py, stat, w.Print))
+        if (!PlayerStatLogic.StatRestore(w.Py, stat, w.Print, w.Ui))
         {
             return false;
         }

@@ -156,7 +156,7 @@ public static class PlayerTraps
         {
             if (!sustained)
             {
-                PlayerStatLogic.StatRandomDecrease(w.Py, stat, w.Print);
+                PlayerStatLogic.StatRandomDecrease(w.Py, stat, w.Print, w.Ui);
 
                 PlayerCore.TakesHit(w, dam, description);
 
@@ -500,7 +500,7 @@ public static class PlayerTraps
             return;
         }
 
-        PlayerStatLogic.StatRandomDecrease(w.Py, PlayerConfig.Attr.Str, w.Print);
+        PlayerStatLogic.StatRandomDecrease(w.Py, PlayerConfig.Attr.Str, w.Print, w.Ui);
 
         PlayerCore.TakesHit(w, DiceRoller.Roll(new Model.Generated.Dice(1, 4)), "a poison needle");
 

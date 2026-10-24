@@ -28,8 +28,8 @@ namespace Umoria.Core.Stores;
 //     shows is computed here (prices are charisma-adjusted at display time;
 //     displaySingleCost() prints a haggled price without the clamp or width
 //     displayStoreInventory() uses), the drawing is the UI's (M14).
-//     clearScreen()/eraseLine()/moveCursor() and message_ready_to_print
-//     are display only and left out.
+//     clearScreen()/eraseLine()/moveCursor(), the bell and
+//     message_ready_to_print are display only and go through w.Ui (M14).
 //   - Leaving the store calls drawCavePanel() (PY_STUDY upkeep,
 //     PlayerCore.DrawCavePanel); the i/e/t/w/x keys run the real inventory
 //     commands (Items.InventoryCommands) until no command is left open.
@@ -146,7 +146,7 @@ public static class StoreCommands
     {
         PutLine(w, 21, 0, haggleType == -1 ? "Specify an asking-price in gold pieces." : "Specify an offer in gold pieces.");
         PutLine(w, 22, 0, "ESC) Quit Haggling.");
-        // (eraseLine(23): clear last line)
+        w.Ui?.EraseLine(23, 0); // clear last line
     }
 
     // Displays a store's inventory -RAK-
@@ -197,13 +197,23 @@ public static class StoreCommands
             itemPosStart++;
         }
 
-        // (lines below the last item are erased)
+        if (itemLineNum < 12)
+        {
+            for (var i = 0; i < (11 - itemLineNum + 1); i++)
+            {
+                // clear remaining lines
+                w.Ui?.EraseLine(i + itemLineNum + 5, 0);
+            }
+        }
 
         if (store.UniqueItemsCounter > 12)
         {
             Put(w, 17, 60, "- cont. -");
         }
-        // (else eraseLine(17, 60))
+        else
+        {
+            w.Ui?.EraseLine(17, 60);
+        }
     }
 
     // Re-displays only a single cost -RAK-
@@ -234,7 +244,7 @@ public static class StoreCommands
     // Displays store -RAK-
     private static void DisplayStore(PlayerWorld w, Store store, string ownerName, int currentTopItemId)
     {
-        // (clearScreen())
+        w.Ui?.ClearScreen();
         Put(w, 3, 9, ownerName);
         Put(w, 4, 3, "Item");
         Put(w, 4, 60, "Asking Price");
@@ -263,9 +273,9 @@ public static class StoreCommands
                 itemId = key;
                 break;
             }
-            // (terminalBellSound())
+            w.Ui?.TerminalBellSound();
         }
-        // (messageLineClear())
+        w.Ui?.MessageLineClear();
 
         return itemFound;
     }
@@ -312,7 +322,7 @@ public static class StoreCommands
         PrintSpeechTryAgain(w);
 
         // keep insult separate from rest of haggle
-        // (printMessage(CNIL): flushes the message line, no game state)
+        PlayerCore.FlushMessage(w);
 
         return false;
     }
@@ -418,7 +428,10 @@ public static class StoreCommands
                 newOffer = adjustment;
             }
         }
-        // (else messageLineClear())
+        else
+        {
+            w.Ui?.MessageLineClear();
+        }
 
         return validOffer;
     }
@@ -636,7 +649,7 @@ public static class StoreCommands
                     lastOffer = newOffer;
                     offersCount++; // enable incremental haggling
 
-                    // (eraseLine(1, 0))
+                    w.Ui?.EraseLine(1, 0);
                     Put(w, 1, 39, Helpers.Truncate($"Your last offer : {lastOffer}", Helpers.MoriaMessageSize));
 
                     PrintSpeechSellingHaggle(w, lastOffer, currentAskingPrice, finalFlag);
@@ -893,7 +906,7 @@ public static class StoreCommands
                         lastOffer = newOffer;
                         offerCount++; // enable incremental haggling
 
-                        // (eraseLine(1, 0))
+                        w.Ui?.EraseLine(1, 0);
                         Put(w, 1, 39, Helpers.Truncate($"Your last bid {lastOffer}", Helpers.MoriaMessageSize));
 
                         PrintSpeechBuyingHaggle(w, currentAskingPrice, lastOffer, finalFlag);
@@ -1046,7 +1059,7 @@ public static class StoreCommands
 
         // Less intuitive, but looks better here than in storePurchaseHaggle.
         DisplayStoreCommands(w);
-        // (eraseLine(1, 0))
+        w.Ui?.EraseLine(1, 0);
 
         return kickCustomer;
     }
@@ -1224,7 +1237,7 @@ public static class StoreCommands
         }
 
         // Less intuitive, but looks better here than in storeSellHaggle.
-        // (eraseLine(1, 0))
+        w.Ui?.EraseLine(1, 0);
         DisplayStoreCommands(w);
 
         return kickCustomer;
@@ -1247,8 +1260,10 @@ public static class StoreCommands
         var exitStore = false;
         while (!exitStore)
         {
-            // (moveCursor(20, 9); message_ready_to_print = false -- clear
-            // the msg flag just like we do in dungeon.c)
+            w.Ui?.MoveCursor(20, 9);
+
+            // clear the msg flag just like we do in dungeon.c
+            w.Ui?.ClearMessageReady();
 
             if (PlayerCore.GetCommand(w, "", out var command))
             {
@@ -1306,7 +1321,7 @@ public static class StoreCommands
                         exitStore = StoreSellAnItem(w, storeId, ref currentTopItemId);
                         break;
                     default:
-                        // (terminalBellSound())
+                        w.Ui?.TerminalBellSound();
                         break;
                 }
             }

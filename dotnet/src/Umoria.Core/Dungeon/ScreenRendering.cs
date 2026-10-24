@@ -1,37 +1,86 @@
+using System.Runtime.CompilerServices;
+using Umoria.Core.Model.Generated;
+
 namespace Umoria.Core.Dungeon;
 
-// Stand-in for the src/dungeon.cpp call sites that invoke dungeonLiteSpot()
-// (src/dungeon.cpp:392) to redraw a single tile after a state change.
-// dungeonLiteSpot() is confirmed pure rendering -- it resolves a glyph via
-// caveGetTileSymbol() and writes it to the screen panel, with no
-// state-mutating side effect of its own -- so until a terminal/UI milestone
-// exists (none is scheduled yet in migration-plan.md), this is a deliberate
-// no-op. Kept as an explicit call at each site, rather than silently
-// dropped, so wiring up the real renderer later is a one-line change per
-// caller instead of a hunt through the codebase.
-//
-// caveGetTileSymbol() is ported as TileSymbol (M8), because the running
-// algorithm reads it as game logic; the redraw sites that only render with
-// it stay omitted (but see TileSymbol on hallucination RNG).
+// What the dungeon-level display call sites draw through (M14: Ui.GameUi).
+public interface IDungeonRenderer
+{
+    // dungeonLiteSpot() -- redraw a tile if it is inside the panel
+    void LiteSpot(Coord coord);
+
+    // panelPutTile(caveGetTileSymbol(coord), coord)
+    void RedrawTile(Coord coord);
+
+    // panelPutTile(ch, coord)
+    void PutTile(char ch, Coord coord);
+
+    // drawDungeonPanel()
+    void DrawDungeonPanel();
+}
+
+// The bridge from the original's dungeon-level display calls to the UI.
+// Until M14 these were documented no-ops (dungeonLiteSpot() is pure
+// rendering); each call site was kept, so wiring the renderer was a matter
+// of giving them somewhere to go. The light and panel code run below
+// PlayerWorld with only the Dungeon in hand, so the renderer is looked up
+// by Dungeon object; a dungeon nobody attached (every headless run and
+// trace test) draws nothing.
 public static class ScreenRendering
 {
-    public static void LiteSpot(Model.Generated.Dungeon dg, Model.Generated.Coord coord)
+    private static readonly ConditionalWeakTable<Model.Generated.Dungeon, IDungeonRenderer> Renderers = new();
+
+    public static void Attach(Model.Generated.Dungeon dg, IDungeonRenderer renderer)
     {
+        Renderers.AddOrUpdate(dg, renderer);
     }
 
-    // Stand-in for the display half of src/ui_io.cpp printMessage(), added
-    // in M6 for the spell-allowance messages ("You can learn some new
-    // spells now."). The message line, -more- prompt and message history
-    // are display-only, so this is a documented no-op until the UI
-    // milestone (M14).
-    //
-    // NOT pure display, though (found in M7): the real printMessage() also
-    // zeroes game.command_count for every non-null message, cancelling a
-    // repeated command. Code with a PlayerWorld should call
-    // Character.PlayerCore.PrintMessage, which does both. M6's
-    // PlayerSpells calls this directly -- harmless during character
-    // creation (no command count exists yet), but its in-game callers
-    // (M10 casting, level gain) need to route through PlayerCore instead.
+    public static void Detach(Model.Generated.Dungeon dg)
+    {
+        Renderers.Remove(dg);
+    }
+
+    // src/dungeon.cpp:392 dungeonLiteSpot()
+    public static void LiteSpot(Model.Generated.Dungeon dg, Coord coord)
+    {
+        if (Renderers.TryGetValue(dg, out var renderer))
+        {
+            renderer.LiteSpot(coord);
+        }
+    }
+
+    // panelPutTile(caveGetTileSymbol(coord), coord) -- the light code's
+    // redraws, which (unlike dungeonLiteSpot()) don't check the panel.
+    public static void RedrawTile(Model.Generated.Dungeon dg, Coord coord)
+    {
+        if (Renderers.TryGetValue(dg, out var renderer))
+        {
+            renderer.RedrawTile(coord);
+        }
+    }
+
+    // panelPutTile(ch, coord)
+    public static void PutTile(Model.Generated.Dungeon dg, char ch, Coord coord)
+    {
+        if (Renderers.TryGetValue(dg, out var renderer))
+        {
+            renderer.PutTile(ch, coord);
+        }
+    }
+
+    // src/ui.cpp:82 drawDungeonPanel()
+    public static void DrawDungeonPanel(Model.Generated.Dungeon dg)
+    {
+        if (Renderers.TryGetValue(dg, out var renderer))
+        {
+            renderer.DrawDungeonPanel();
+        }
+    }
+
+    // The display half of printMessage() for callers with no PlayerWorld
+    // (M6's character creation messages). The real message line needs the
+    // world (Character.PlayerCore.PrintMessage -> GameUi.PrintMessage);
+    // creation runs before there is a screen, so this stays a no-op.
     public static void PrintMessage(string message)
     {
     }

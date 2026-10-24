@@ -446,7 +446,8 @@ public static class PlayerSpells
         else if (stat == PlayerConfig.Attr.Int)
         {
             // get to choose which mage spells will be learned
-            // (terminalSaveScreen(), displaySpellsList() -- display)
+            w.Ui?.TerminalSaveScreen();
+            w.Ui?.DisplaySpellsList(spellBank, spellId, false, -1);
 
             while (newSpells != 0 && PlayerCore.GetCommand(w, "Learn which spell?", out var query))
             {
@@ -469,12 +470,16 @@ public static class PlayerSpells
 
                     spellId--;
 
-                    // (eraseLine(), displaySpellsList() -- display)
+                    w.Ui?.EraseLine(c + 1, 31);
+                    w.Ui?.DisplaySpellsList(spellBank, spellId, false, -1);
                 }
-                // (else terminalBellSound() -- display)
+                else
+                {
+                    w.Ui?.TerminalBellSound();
+                }
             }
 
-            // (terminalRestoreScreen() -- display)
+            w.Ui?.TerminalRestoreScreen();
         }
         else
         {

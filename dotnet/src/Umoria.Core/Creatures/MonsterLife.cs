@@ -150,7 +150,7 @@ public static class MonsterLife
         {
             w.Game.TotalWinner = true;
 
-            // (printCharacterWinner() -- display)
+            w.Ui?.PrintCharacterWinner();
 
             PlayerCore.PrintMessage(w, "*** CONGRATULATIONS *** You have won the game.");
             PlayerCore.PrintMessage(w, "You cannot save this game, but you may retire when ready.");

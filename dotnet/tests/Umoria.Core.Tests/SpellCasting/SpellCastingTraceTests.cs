@@ -301,7 +301,7 @@ public class SpellCastingTraceTests
         throw new InvalidOperationException($"scenario setup: no pack item in category {lo}..{hi}");
     }
 
-    private static void EquipObject(Player py, int objectId, int slot)
+    internal static void EquipObject(Player py, int objectId, int slot)
     {
         py.Inventory[slot] = InventoryCatalog.CopyFromCatalog(objectId);
         py.EquipmentCount++;

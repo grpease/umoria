@@ -153,6 +153,7 @@ public static class SpellCasting
         var str = $"(Spells {(char)(spellIds[0] + 'a' - firstSpell)}-{(char)(spellIds[numberOfChoices - 1] + 'a' - firstSpell)}, *=List, <ESCAPE>=exit) {prompt}";
 
         var spellFound = false;
+        var redraw = false;
 
         var offset = IsMage(py) ? SpellConfig.NameOffsetSpells : SpellConfig.NameOffsetPrayers;
 
@@ -198,13 +199,19 @@ public static class SpellCasting
             }
             else if (spellChoice == '*')
             {
-                // (terminalSaveScreen() + displaySpellsList() -- display)
+                // only do this drawing once
+                if (!redraw && w.Ui is { } ui)
+                {
+                    ui.TerminalSaveScreen();
+                    redraw = true;
+                    ui.DisplaySpellsList(spellIds, numberOfChoices, false, firstSpell);
+                }
             }
             else
             {
                 // (isalpha() can't be true here for an ASCII key)
                 spellId = -1;
-                // (terminalBellSound() -- display)
+                w.Ui?.TerminalBellSound();
             }
 
             if (spellId == -2)
@@ -213,7 +220,12 @@ public static class SpellCasting
             }
         }
 
-        // (terminalRestoreScreen(), messageLineClear() -- display)
+        if (redraw)
+        {
+            w.Ui?.TerminalRestoreScreen();
+        }
+
+        w.Ui?.MessageLineClear();
 
         if (spellFound)
         {
@@ -482,7 +494,7 @@ public static class SpellCasting
             if (RandomNumber.Next(3) == 1)
             {
                 PlayerCore.PrintMessage(w, "You have damaged your health!");
-                PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Con, w.Print);
+                PlayerStatLogic.StatRandomDecrease(py, PlayerConfig.Attr.Con, w.Print, w.Ui);
             }
         }
         else
@@ -490,7 +502,7 @@ public static class SpellCasting
             py.Misc.CurrentMana = (short)(py.Misc.CurrentMana - spell.ManaRequired);
         }
 
-        // (printCharacterCurrentMana() -- display)
+        w.Ui?.PrintCharacterCurrentMana();
     }
 
     // src/mage_spells.cpp:202 getAndCastMagicSpell() -- throw a magic spell
@@ -722,7 +734,7 @@ public static class SpellCasting
 
                 for (var i = PlayerConfig.Attr.Str; i <= PlayerConfig.Attr.Chr; i++)
                 {
-                    PlayerStatLogic.StatRestore(py, i, w.Print);
+                    PlayerStatLogic.StatRestore(py, i, w.Print, w.Ui);
                 }
 
                 DamageSpells.DispelCreature(w, MonsterConfig.Defense.CdEvil, 4 * py.Misc.Level);

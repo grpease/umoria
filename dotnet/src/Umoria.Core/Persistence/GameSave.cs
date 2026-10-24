@@ -100,6 +100,7 @@ public sealed class GameSave
                 // (getStringInput() reads through getKeyInput(), which
                 // zeroes game.command_count)
                 w.Game.CommandCount = 0;
+                w.ScreenWrite?.Invoke(0, 0, "New Save file [ESC to give up]:", true);
                 var input = w.ReadString("New Save file [ESC to give up]:", 45);
                 if (input is null)
                 {

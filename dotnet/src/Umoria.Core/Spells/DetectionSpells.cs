@@ -15,11 +15,11 @@ namespace Umoria.Core.Spells;
 // dark-room floor.
 //
 // panelPutTile() (the detected monster's glyph), drawDungeonPanel() and
-// printMessage(CNIL) (a message-line flush) are display only; each detect
-// spell's updateMonsters(false) -- "must unlight every monster just lighted"
-// -- is the state half and is kept. drawDungeonPanel() redraws through
-// caveGetTileSymbol(), which draws RNG only while hallucinating -- the same
-// open decision as M7/M8 (see migration-plan.md M14).
+// printMessage(CNIL) (a message-line flush) are display (M14: through
+// ScreenRendering / w.Ui); each detect spell's updateMonsters(false) --
+// "must unlight every monster just lighted" -- is the state half. The
+// detected glyphs stay on screen until the message is flushed (its -more-
+// prompt), which is the only moment the player sees them.
 public static class DetectionSpells
 {
     // src/spells.cpp:158 spellDetectTreasureWithinVicinity() -- detect any
@@ -176,8 +176,8 @@ public static class DetectionSpells
             {
                 monster.Lit = true;
 
-                // (panelPutTile(sprite) -- display; "works correctly even if
-                // hallucinating")
+                // works correctly even if hallucinating
+                ScreenRendering.PutTile(w.Dg, (char)DataCreaturesData.CreaturesList[monster.CreatureId].Sprite, monster.Pos);
 
                 detected = true;
             }
@@ -186,7 +186,7 @@ public static class DetectionSpells
         if (detected)
         {
             PlayerCore.PrintMessage(w, message);
-            // (printMessage(CNIL) -- flushes the message line, display only)
+            PlayerCore.FlushMessage(w);
 
             // must unlight every monster just lighted
             MonsterAi.UpdateMonsters(w, false);
@@ -341,6 +341,6 @@ public static class DetectionSpells
             }
         }
 
-        // (drawDungeonPanel() -- display)
+        ScreenRendering.DrawDungeonPanel(dg);
     }
 }

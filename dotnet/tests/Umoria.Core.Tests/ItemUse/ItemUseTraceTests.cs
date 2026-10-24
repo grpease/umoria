@@ -28,7 +28,7 @@ namespace Umoria.Core.Tests.ItemUse;
 // the description of every carried item at the end.
 public class ItemUseTraceTests
 {
-    private sealed record Scenario(
+    internal sealed record Scenario(
         string Name,
         uint Seed,
         int RaceId,
@@ -90,9 +90,11 @@ public class ItemUseTraceTests
     {
         ["P"] = new Coord(11, 20),
         ["DARK"] = new Coord(11, 120),
+        ["GEN"] = new Coord(-1, -1), // M14's UI scenarios: a generated level
     };
 
-    private static List<Scenario> ParseScenarios(string path)
+    // (also parses M14's ui_screen_scenarios.inc, which has the same fields)
+    internal static List<Scenario> ParseScenarios(string path)
     {
         var scenarios = new List<Scenario>();
 

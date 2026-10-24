@@ -513,3 +513,25 @@ list(APPEND store_dump_source_files
 add_executable(store_dump ${store_dump_source_files})
 target_link_libraries(store_dump ${CURSES_LIBRARIES})
 set_target_properties(store_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")
+
+#
+# UI screen dump harness: verifies the .NET migration's M14 port of the
+# terminal UI (ui_io.cpp, ui.cpp, ui_inventory.cpp and the ^P/M/L screens)
+# against the real compiled C++ game, screen by screen. Unlike the other
+# harnesses this keeps the real ui_io.cpp and swaps curses for a headless
+# 24x80 shim (tools/ui_screen_dump/shim/curses.h, first on this target's
+# include path; PDCurses isn't linked). game_run.cpp is #included by the
+# harness for its static command screens. See
+# tools/ui_screen_dump/ui_screen_dump.cpp.
+#
+set(ui_screen_dump_source_files ${source_files})
+list(REMOVE_ITEM ui_screen_dump_source_files ${source_dir}/main.cpp ${source_dir}/game_run.cpp)
+list(APPEND ui_screen_dump_source_files
+        tools/ui_screen_dump/ui_screen_dump.cpp
+        tools/ui_screen_dump/shim_curses.cpp
+        tools/char_create_dump/char_create_common.cpp
+)
+
+add_executable(ui_screen_dump ${ui_screen_dump_source_files})
+target_include_directories(ui_screen_dump BEFORE PRIVATE tools/ui_screen_dump/shim)
+set_target_properties(ui_screen_dump PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${build_dir}")

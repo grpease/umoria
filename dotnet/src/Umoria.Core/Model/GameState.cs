@@ -38,6 +38,10 @@ public sealed class GameState
     // etc.) -- ObjectIdentification.MagicInitializeItemNames (M11)
     public uint MagicSeed { get; set; }
 
+    // Memory of previous command (game.last_command). The main loop (M15)
+    // sets it; ^P's message history reads it. (M14)
+    public char LastCommand { get; set; }
+
     // Track inventory commands -CJS- -- the command an inventory menu was
     // left in, which the main loop (M15) re-enters next turn (M11)
     public char DoingInventoryCommand { get; set; }
@@ -80,8 +84,8 @@ public sealed class GameState
     // src/ui.cpp screen_has_changed -- set when something redraws over an
     // open inventory menu (the real terminal layer and monster visibility
     // changes), which makes the next re-entered inventory command ask
-    // "Continuing with inventory command?". Nothing in the port sets it yet:
-    // that is UI (M14). (M11)
+    // "Continuing with inventory command?". The terminal layer sets it
+    // (Ui.GameUi.PutQio, M14); headless runs never do. (M11)
     public bool ScreenHasChanged { get; set; }
 }
 
@@ -96,9 +100,11 @@ public enum Screen
     Wrong,
 }
 
-// src/game.h Game_t::screen, less the drawing positions (M11)
+// src/game.h Game_t::screen (M11; M14 added the drawing positions)
 public sealed class InventoryScreen
 {
+    public int ScreenLeftPos { get; set; }
+    public int ScreenBottomPos { get; set; }
     public Screen CurrentScreenId { get; set; } = Screen.Blank;
     public int WearLowId { get; set; }
     public int WearHighId { get; set; }

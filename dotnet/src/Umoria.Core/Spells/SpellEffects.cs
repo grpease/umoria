@@ -181,7 +181,8 @@ public static class SpellEffects
                 PlayerSpells.CalculateAllowedSpellsCount(py, PlayerConfig.Attr.Wis, w.Print);
                 PlayerSpells.GainMana(py, PlayerConfig.Attr.Wis);
             }
-            // (printCharacterLevel(), printCharacterTitle() -- display)
+            w.Ui?.PrintCharacterLevel();
+            w.Ui?.PrintCharacterTitle();
         }
     }
 
@@ -202,7 +203,7 @@ public static class SpellEffects
             m.CurrentHp = m.MaxHp;
             m.CurrentHpFraction = 0;
         }
-        // (printCharacterCurrentHitPoints() -- display)
+        w.Ui?.PrintCharacterCurrentHitPoints();
 
         adjustment /= 5;
 
@@ -222,7 +223,7 @@ public static class SpellEffects
     {
         if (!sustained)
         {
-            PlayerStatLogic.StatRandomDecrease(w.Py, stat, w.Print);
+            PlayerStatLogic.StatRandomDecrease(w.Py, stat, w.Print, w.Ui);
             PlayerCore.PrintMessage(w, lost);
         }
         else

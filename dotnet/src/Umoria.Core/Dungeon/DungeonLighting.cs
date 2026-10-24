@@ -9,19 +9,20 @@ namespace Umoria.Core.Dungeon;
 // helpers) and src/ui.cpp's dungeonResetView() were deferred from M5 for
 // want of a Player; they're ported here as of M7, because the player
 // status-effect updates (blindness, light running out, playerDisturb())
-// reach them. Their panelPutTile()/drawDungeonPanel() calls are terminal
-// rendering and are omitted, same as LightRoom's.
+// reach them. Their panelPutTile()/drawDungeonPanel() calls draw through
+// ScreenRendering (M14), in the original's order; with no screen attached
+// they do nothing.
 public static class DungeonLighting
 {
     // src/ui.cpp:111 dungeonResetView() -- we need to reset the view of
     // things. -CJS- (M8 added the panel check: the panel shift is state, see
-    // ScreenPanel; only the drawDungeonPanel() redraw is omitted.)
+    // ScreenPanel.)
     public static void ResetView(Player py, Model.Generated.Dungeon dg, TreasureList treasure, GameOptions options)
     {
         // Check for new panel
         if (ScreenPanel.CoordOutsidePanel(py, dg, treasure, options, py.Pos, false))
         {
-            // (drawDungeonPanel() -- rendering)
+            ScreenRendering.DrawDungeonPanel(dg);
         }
 
         // Move the light source
@@ -78,7 +79,7 @@ public static class DungeonLighting
     {
         if (py.Flags.Blind > 0 || !py.CarryingLight)
         {
-            Sub3MoveLight(py, dg, from);
+            Sub3MoveLight(py, dg, options, from, to);
         }
         else
         {
@@ -138,13 +139,43 @@ public static class DungeonLighting
             }
         }
 
-        // (the original then redraws every tile from `from` to `to` --
-        // rendering only)
+        // From uppermost to bottom most lines player was on.
+        int top, left, bottom, right;
+
+        if (from.Y < to.Y)
+        {
+            top = from.Y - 1;
+            bottom = to.Y + 1;
+        }
+        else
+        {
+            top = to.Y - 1;
+            bottom = from.Y + 1;
+        }
+        if (from.X < to.X)
+        {
+            left = from.X - 1;
+            right = to.X + 1;
+        }
+        else
+        {
+            left = to.X - 1;
+            right = from.X + 1;
+        }
+
+        for (var y = top; y <= bottom; y++)
+        {
+            // Leftmost to rightmost do
+            for (var x = left; x <= right; x++)
+            {
+                ScreenRendering.RedrawTile(dg, new Coord(y, x));
+            }
+        }
     }
 
     // src/dungeon.cpp:468 sub3MoveLight() -- when blinded, move only the
     // player symbol. With no light, movement becomes involved.
-    private static void Sub3MoveLight(Player py, Model.Generated.Dungeon dg, Coord from)
+    private static void Sub3MoveLight(Player py, Model.Generated.Dungeon dg, GameOptions options, Coord from, Coord to)
     {
         if (py.TemporaryLightOnly)
         {
@@ -153,13 +184,21 @@ public static class DungeonLighting
                 for (var x = from.X - 1; x <= from.X + 1; x++)
                 {
                     dg.Floor[y, x].TemporaryLight = false;
+                    ScreenRendering.RedrawTile(dg, new Coord(y, x));
                 }
             }
 
             py.TemporaryLightOnly = false;
         }
+        else if (py.RunningTracker == 0 || options.RunPrintSelf)
+        {
+            ScreenRendering.RedrawTile(dg, from);
+        }
 
-        // (the rest only redraws `from` and the '@' at `to` -- rendering)
+        if (py.RunningTracker == 0 || options.RunPrintSelf)
+        {
+            ScreenRendering.PutTile(dg, '@', to);
+        }
     }
 
     // src/dungeon.cpp:212 caveTileVisible()
@@ -169,11 +208,9 @@ public static class DungeonLighting
         return tile.PermanentLight || tile.TemporaryLight || tile.FieldMark;
     }
 
-    // src/dungeon.cpp:358 dungeonLightRoom() -- ports the state mutation
-    // only (permanent_light, field_mark, dark->light floor upgrade). The
-    // original's per-tile panelPutTile(caveGetTileSymbol(location), ...)
-    // call is terminal rendering built on caveGetTileSymbol(), which isn't
-    // ported (see ScreenRendering's class comment), so it's omitted.
+    // src/dungeon.cpp:358 dungeonLightRoom() -- room is lit, make it appear
+    // -RAK- (permanent_light, field_mark, dark->light floor upgrade, and each
+    // newly lit tile redrawn)
     public static void LightRoom(Model.Generated.Dungeon dg, TreasureList treasure, Coord coord)
     {
         const int heightMiddle = DungeonConstants.ScreenHeight / 2;
@@ -212,6 +249,7 @@ public static class DungeonLighting
                 }
 
                 dg.Floor[y, x] = tile;
+                ScreenRendering.RedrawTile(dg, new Coord(y, x));
             }
         }
     }

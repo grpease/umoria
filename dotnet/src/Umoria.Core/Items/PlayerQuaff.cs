@@ -97,44 +97,44 @@ public static class PlayerQuaff
             switch ((PotionSpellTypes)potionId)
             {
                 case PotionSpellTypes.Strength:
-                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Str, w.Print), "Wow!  What bulging muscles!", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Str, w.Print, w.Ui), "Wow!  What bulging muscles!", identified);
                     break;
                 case PotionSpellTypes.Weakness:
                     SpellEffects.LoseStr(w);
                     identified = true;
                     break;
                 case PotionSpellTypes.RestoreStrength:
-                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Str, w.Print), "You feel warm all over.", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Str, w.Print, w.Ui), "You feel warm all over.", identified);
                     break;
                 case PotionSpellTypes.Intelligence:
-                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Int, w.Print), "Aren't you brilliant!", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Int, w.Print, w.Ui), "Aren't you brilliant!", identified);
                     break;
                 case PotionSpellTypes.LoseIntelligence:
                     SpellEffects.LoseInt(w);
                     identified = true;
                     break;
                 case PotionSpellTypes.RestoreIntelligence:
-                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Int, w.Print), "You have have a warm feeling.", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Int, w.Print, w.Ui), "You have have a warm feeling.", identified);
                     break;
                 case PotionSpellTypes.Wisdom:
-                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Wis, w.Print), "You suddenly have a profound thought!", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Wis, w.Print, w.Ui), "You suddenly have a profound thought!", identified);
                     break;
                 case PotionSpellTypes.LoseWisdom:
                     SpellEffects.LoseWis(w);
                     identified = true;
                     break;
                 case PotionSpellTypes.RestoreWisdom:
-                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Wis, w.Print), "You feel your wisdom returning.", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Wis, w.Print, w.Ui), "You feel your wisdom returning.", identified);
                     break;
                 case PotionSpellTypes.Charisma:
-                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Chr, w.Print), "Gee, ain't you cute!", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Chr, w.Print, w.Ui), "Gee, ain't you cute!", identified);
                     break;
                 case PotionSpellTypes.Ugliness:
                     SpellEffects.LoseChr(w);
                     identified = true;
                     break;
                 case PotionSpellTypes.RestoreCharisma:
-                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Chr, w.Print), "You feel your looks returning.", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Chr, w.Print, w.Ui), "You feel your looks returning.", identified);
                     break;
                 case PotionSpellTypes.CureLightWounds:
                     identified = SpellEffects.ChangePlayerHitPoints(w, DiceRoller.Roll(new Model.Generated.Dice(2, 7)));
@@ -149,7 +149,7 @@ public static class PlayerQuaff
                     identified = SpellEffects.ChangePlayerHitPoints(w, 1000);
                     break;
                 case PotionSpellTypes.Constitution:
-                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Con, w.Print), "You feel tingly for a moment.", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Con, w.Print, w.Ui), "You feel tingly for a moment.", identified);
                     break;
                 case PotionSpellTypes.GainExperience:
                     if (m.Exp < PlayerConfig.PlayerMaxExp)
@@ -214,13 +214,13 @@ public static class PlayerQuaff
                     f.Slow = (short)(f.Slow + RandomNumber.Next(25) + 15);
                     break;
                 case PotionSpellTypes.Dexterity:
-                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Dex, w.Print), "You feel more limber!", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRandomIncrease(py, PlayerConfig.Attr.Dex, w.Print, w.Ui), "You feel more limber!", identified);
                     break;
                 case PotionSpellTypes.RestoreDexterity:
-                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Dex, w.Print), "You feel less clumsy.", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Dex, w.Print, w.Ui), "You feel less clumsy.", identified);
                     break;
                 case PotionSpellTypes.RestoreConstitution:
-                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Con, w.Print), "You feel your health returning!", identified);
+                    identified = StatCase(w, PlayerStatLogic.StatRestore(py, PlayerConfig.Attr.Con, w.Print, w.Ui), "You feel your health returning!", identified);
                     break;
                 case PotionSpellTypes.CureBlindness:
                     identified = PlayerMagic.CureBlindness(py);
@@ -323,7 +323,7 @@ public static class PlayerQuaff
                     {
                         m.CurrentMana = m.Mana;
                         PlayerCore.PrintMessage(w, "Your feel your head clear.");
-                        // (printCharacterCurrentMana() -- display only)
+                        w.Ui?.PrintCharacterCurrentMana();
                         identified = true;
                     }
                     break;
